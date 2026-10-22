@@ -6,5 +6,8 @@
 export/
 build/
 
+# Downloaded installers
+*.zip
+
 # macOS
 .DS_Store
