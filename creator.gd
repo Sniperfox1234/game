@@ -25,7 +25,7 @@ func _ready() -> void:
 	add_child(title)
 
 	avatar.set_script(AvatarScript)
-	avatar.position = Vector2(300, 360)
+	avatar.position = Vector2(300, 440)
 	avatar.scale = Vector2(8, 8)
 	add_child(avatar)
 
@@ -51,6 +51,13 @@ func _ready() -> void:
 	start.custom_minimum_size = Vector2(300, 48)
 	start.pressed.connect(_on_start)
 	panel.add_child(start)
+
+	if GameState.has_save():
+		var cont := Button.new()
+		cont.text = "Continue saved game"
+		cont.custom_minimum_size = Vector2(300, 48)
+		cont.pressed.connect(_on_continue)
+		panel.add_child(cont)
 
 
 func _swatch_row(label_text: String, hexes: Array, on_pick: Callable) -> Control:
@@ -87,6 +94,11 @@ func _set_hair(color: Color) -> void:
 func _set_shirt(color: Color) -> void:
 	GameState.shirt_color = color
 	avatar.queue_redraw()
+
+
+func _on_continue() -> void:
+	if GameState.load_game():
+		get_tree().change_scene_to_file("res://farm.tscn")
 
 
 func _on_start() -> void:
