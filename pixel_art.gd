@@ -908,3 +908,389 @@ static func crosshair() -> Texture2D:
 	put(img, 8, 8, Color("e84a5f"))
 	_cache["crosshair"] = tex(img)
 	return _cache["crosshair"]
+
+
+# ---------- bakery ----------
+
+# Cream and rose checkered tiles. Origin is the top-left.
+static func checker_floor(tw: int, th: int) -> Texture2D:
+	var key := "checker_%d_%d" % [tw, th]
+	if _cache.has(key):
+		return _cache[key]
+	var img := canvas(tw * 16, th * 16)
+	var light := Color("f6e6cc")
+	var rose := Color("eec3b4")
+	for ty in th:
+		for tx in tw:
+			var base := light if (tx + ty) % 2 == 0 else rose
+			rect(img, tx * 16, ty * 16, 16, 16, base)
+			rect(img, tx * 16, ty * 16, 16, 1, base.lightened(0.15))
+			rect(img, tx * 16, ty * 16 + 15, 16, 1, base.darkened(0.14))
+			rect(img, tx * 16 + 15, ty * 16, 1, 16, base.darkened(0.14))
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+# A brick oven with a glowing arched mouth. Origin is the bottom-centre; 40x40.
+static func oven() -> Texture2D:
+	if _cache.has("oven"):
+		return _cache["oven"]
+	var img := canvas(40, 40)
+	var brick := Color("b5573e")
+	ellipse(img, 20, 38, 18, 2, Color(0, 0, 0, 0.3))
+	rect(img, 15, 0, 10, 10, OUT)
+	rect(img, 16, 0, 8, 9, brick.darkened(0.2))
+	ellipse(img, 20, 20, 19, 17, OUT)
+	rect(img, 1, 20, 38, 18, OUT)
+	ellipse(img, 20, 20, 18, 16, brick)
+	rect(img, 2, 20, 36, 17, brick)
+	for y in range(8, 37, 5):
+		rect(img, 3, y, 34, 1, brick.darkened(0.25))
+		for x in range(4 + (y % 2) * 4, 37, 8):
+			rect(img, x, y, 1, 5, brick.darkened(0.25))
+	rect(img, 2, 8, 36, 2, brick.lightened(0.15))
+	ellipse(img, 20, 27, 10, 9, OUT)
+	rect(img, 10, 27, 20, 10, OUT)
+	ellipse(img, 20, 27, 9, 8, Color("5a1f10"))
+	rect(img, 11, 27, 18, 9, Color("5a1f10"))
+	ellipse(img, 20, 33, 7, 4, FIRE)
+	ellipse(img, 20, 33, 4, 2.4, FIRE_L)
+	for x in [13, 17, 23, 26]:
+		rect(img, x, 29, 2, 3, FIRE)
+	_cache["oven"] = tex(img)
+	return _cache["oven"]
+
+
+# A wall shelf stacked with loaves, baguettes and rolls. Origin is the top-left; 40x30.
+static func bread_shelf() -> Texture2D:
+	if _cache.has("bread_shelf"):
+		return _cache["bread_shelf"]
+	var img := canvas(40, 30)
+	rect(img, 0, 0, 40, 30, OUT)
+	rect(img, 1, 1, 38, 28, WOOD_D)
+	rect(img, 1, 1, 38, 2, WOOD_M)
+	var crust := Color("d9953c")
+	var crust_d := Color("a8662a")
+	var crust_l := Color("f2c070")
+	for shelf in 2:
+		var y := 4 + shelf * 13
+		rect(img, 1, y + 9, 38, 2, WOOD_M)
+		rect(img, 1, y + 10, 38, 1, WOOD_L)
+		# Round loaves.
+		for x in [6, 15]:
+			ellipse(img, x + 4, y + 5, 5.5, 4.5, OUT)
+			ellipse(img, x + 4, y + 5, 4.5, 3.6, crust)
+			ellipse(img, x + 3, y + 4, 2.5, 1.6, crust_l)
+			put(img, x + 4, y + 4, crust_d)
+			put(img, x + 6, y + 5, crust_d)
+		# Baguettes leaning in a basket.
+		for k in 3:
+			rect(img, 26 + k * 3, y - 1 + k, 2, 10 - k, OUT)
+			rect(img, 27 + k * 3, y + k, 1, 8 - k, crust)
+		rect(img, 24, y + 6, 12, 3, OUT)
+		rect(img, 25, y + 7, 10, 1, WOOD_M)
+	_cache["bread_shelf"] = tex(img)
+	return _cache["bread_shelf"]
+
+
+# A glass pastry case that sits on top of the counter, `tiles` wide. Origin is the top-left.
+static func pastry_case(tiles: int) -> Texture2D:
+	var key := "pastry_%d" % tiles
+	if _cache.has(key):
+		return _cache[key]
+	var w := tiles * 16
+	var img := canvas(w, 18)
+	rect(img, 0, 2, w, 16, OUT)
+	rect(img, 1, 3, w - 2, 14, Color(0.8, 0.92, 1.0, 0.55))
+	rect(img, 1, 3, w - 2, 2, Color(1, 1, 1, 0.6))
+	var items := [
+		[Color("e8a2b8"), Color("fff0f4")], [Color("c98a4a"), Color("f0c585")],
+		[Color("a35a8a"), Color("f2a8d8")], [Color("d9953c"), Color("f6d58a")],
+	]
+	var i := 0
+	for x in range(6, w - 8, 14):
+		var it: Array = items[i % items.size()]
+		ellipse(img, x + 4, 12, 5.5, 3.6, OUT)
+		ellipse(img, x + 4, 12, 4.6, 2.8, it[0])
+		ellipse(img, x + 3, 10.5, 2.6, 1.5, it[1])
+		put(img, x + 4, 8, Color("e84a5f"))
+		i += 1
+	rect(img, 0, 0, w, 3, OUT)
+	rect(img, 1, 1, w - 2, 1, WOOD_L)
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+# A round café table with a gingham cloth, a plate of cake and two little chairs. Origin: bottom-centre; 40x30.
+static func cafe_table() -> Texture2D:
+	if _cache.has("cafe_table"):
+		return _cache["cafe_table"]
+	var img := canvas(40, 30)
+	ellipse(img, 20, 26, 17, 3, Color(0, 0, 0, 0.28))
+	# Chairs at the sides.
+	for x in [3, 29]:
+		rect(img, x, 8, 8, 17, OUT)
+		rect(img, x + 1, 9, 6, 6, WOOD_M)
+		rect(img, x + 1, 16, 6, 8, WOOD_D)
+	# Table: pedestal and a round top with a checked cloth.
+	rect(img, 17, 18, 6, 9, OUT)
+	rect(img, 18, 19, 4, 7, WOOD_M)
+	ellipse(img, 20, 13, 15, 8, OUT)
+	ellipse(img, 20, 13, 14, 7, Color("f5f5f5"))
+	for ty in range(7, 20, 3):
+		for tx in range(8, 33, 3):
+			if (tx / 3 + ty / 3) % 2 == 0:
+				var dx := (tx - 20) / 14.0
+				var dy := (ty - 13) / 7.0
+				if dx * dx + dy * dy < 0.85:
+					rect(img, tx, ty, 3, 3, Color("e8707f"))
+	ellipse(img, 20, 12, 6, 3.2, OUT)
+	ellipse(img, 20, 12, 5, 2.4, Color("fff0f4"))
+	ellipse(img, 20, 11, 3, 1.6, Color("e8a2b8"))
+	put(img, 20, 9, Color("e84a5f"))
+	rect(img, 29, 9, 4, 4, OUT)
+	rect(img, 30, 10, 2, 2, Color("8a5a2b"))
+	_cache["cafe_table"] = tex(img)
+	return _cache["cafe_table"]
+
+
+# ---------- town hall ----------
+
+# Polished marble in two pale tones. Origin is the top-left.
+static func marble_floor(tw: int, th: int) -> Texture2D:
+	var key := "marble_%d_%d" % [tw, th]
+	if _cache.has(key):
+		return _cache[key]
+	var img := canvas(tw * 16, th * 16)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 91
+	for ty in th:
+		for tx in tw:
+			var base := Color("dfe5ef") if (tx + ty) % 2 == 0 else Color("c9d2e2")
+			rect(img, tx * 16, ty * 16, 16, 16, base)
+			rect(img, tx * 16, ty * 16, 16, 1, base.lightened(0.2))
+			rect(img, tx * 16, ty * 16, 1, 16, base.lightened(0.12))
+			rect(img, tx * 16, ty * 16 + 15, 16, 1, base.darkened(0.16))
+			rect(img, tx * 16 + 15, ty * 16, 1, 16, base.darkened(0.16))
+			# Marble veins.
+			var vx := tx * 16 + rng.randi_range(2, 12)
+			var vy := ty * 16 + rng.randi_range(2, 12)
+			for k in rng.randi_range(3, 6):
+				put(img, vx + k, vy + int(k * 0.6), base.darkened(0.1))
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+# The mayor's big desk with papers, an inkwell and a quill. Origin is the top-left; `tiles` wide, 28 tall.
+static func desk(tiles: int) -> Texture2D:
+	var key := "desk_%d" % tiles
+	if _cache.has(key):
+		return _cache[key]
+	var w := tiles * 16
+	var img := canvas(w, 30)
+	rect(img, 0, 0, w, 27, OUT)
+	rect(img, 1, 1, w - 2, 10, WOOD_L)
+	rect(img, 1, 11, w - 2, 1, WOOD_D)
+	rect(img, 1, 12, w - 2, 14, WOOD_M)
+	for x in range(10, w - 2, 20):
+		rect(img, x, 12, 1, 14, WOOD_D)
+		rect(img, x - 4, 17, 8, 4, WOOD_D)
+		rect(img, x - 3, 18, 6, 2, GOLD_D)
+	rect(img, 1, 25, w - 2, 1, WOOD_D)
+	# Papers, a stamp, ink and a quill.
+	rect(img, 8, 2, 14, 8, OUT)
+	rect(img, 9, 3, 12, 6, Color("f5f0e0"))
+	for y in [4, 6]:
+		rect(img, 10, y, 8, 1, Color("8a86a6"))
+	rect(img, w - 30, 3, 10, 6, OUT)
+	rect(img, w - 29, 4, 8, 4, Color("f5f0e0"))
+	rect(img, w - 14, 4, 6, 6, OUT)
+	rect(img, w - 13, 5, 4, 4, Color("2a2540"))
+	rect(img, w - 11, 0, 2, 5, Color("f5f5f5"))
+	put(img, w - 10, 0, RED)
+	ellipse(img, w / 2.0, 26, w / 2.0 - 2, 2, Color(0, 0, 0, 0.25))
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+# A cork notice board pinned with quest notes. Origin is the top-left; 52x36.
+static func notice_board() -> Texture2D:
+	if _cache.has("notice"):
+		return _cache["notice"]
+	var img := canvas(52, 36)
+	rect(img, 0, 0, 52, 36, OUT)
+	rect(img, 1, 1, 50, 34, WOOD_M)
+	rect(img, 3, 3, 46, 30, Color("b88a55"))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 13
+	for i in 60:
+		put(img, rng.randi_range(3, 48), rng.randi_range(3, 32), Color("9c703f"))
+	var notes := [
+		[6, 6, Color("f5f0e0")], [20, 5, Color("ffe08a")], [34, 7, Color("f5f0e0")],
+		[10, 19, Color("ffd1d9")], [25, 18, Color("f5f0e0")], [38, 19, Color("c8ecff")],
+	]
+	for n in notes:
+		rect(img, n[0], n[1], 11, 11, OUT)
+		rect(img, n[0] + 1, n[1] + 1, 9, 9, n[2])
+		for l in 3:
+			rect(img, n[0] + 2, n[1] + 3 + l * 2, 6, 1, Color("8a86a6"))
+		put(img, n[0] + 5, n[1] + 1, Color("e84a5f"))
+	_cache["notice"] = tex(img)
+	return _cache["notice"]
+
+
+# A marble pillar. Origin is the bottom-centre; 18x46.
+static func pillar() -> Texture2D:
+	if _cache.has("pillar"):
+		return _cache["pillar"]
+	var img := canvas(18, 46)
+	ellipse(img, 9, 44, 8, 2, Color(0, 0, 0, 0.3))
+	rect(img, 1, 38, 16, 7, OUT)
+	rect(img, 2, 39, 14, 5, STONE_M)
+	rect(img, 2, 39, 14, 1, STONE_L)
+	rect(img, 3, 6, 12, 33, OUT)
+	rect(img, 4, 6, 10, 33, STONE_L)
+	rect(img, 4, 6, 3, 33, FOAM)
+	rect(img, 11, 6, 3, 33, STONE_M)
+	for x in [8, 10]:
+		rect(img, x, 8, 1, 29, STONE_M)
+	rect(img, 0, 0, 18, 8, OUT)
+	rect(img, 1, 1, 16, 6, STONE_M)
+	rect(img, 1, 1, 16, 2, STONE_L)
+	rect(img, 2, 7, 14, 1, STONE_D)
+	_cache["pillar"] = tex(img)
+	return _cache["pillar"]
+
+
+# A glass trophy cabinet with cups, a medal and a little sword. Origin is the top-left; 40x44.
+static func trophy_case() -> Texture2D:
+	if _cache.has("trophy"):
+		return _cache["trophy"]
+	var img := canvas(40, 44)
+	rect(img, 0, 0, 40, 44, OUT)
+	rect(img, 1, 1, 38, 42, WOOD_D)
+	rect(img, 3, 4, 34, 36, Color(0.78, 0.9, 1.0, 0.5))
+	rect(img, 3, 4, 34, 36, Color("2a2f4a"))
+	rect(img, 3, 4, 34, 36, Color(0.78, 0.9, 1.0, 0.18))
+	rect(img, 3, 22, 34, 2, WOOD_M)
+	# Cup on the top shelf.
+	rect(img, 9, 9, 10, 8, OUT)
+	rect(img, 10, 9, 8, 7, GOLD)
+	rect(img, 10, 9, 2, 7, FOAM)
+	rect(img, 7, 10, 3, 4, GOLD_D)
+	rect(img, 18, 10, 3, 4, GOLD_D)
+	rect(img, 12, 16, 4, 4, GOLD_D)
+	rect(img, 9, 19, 10, 3, OUT)
+	rect(img, 10, 19, 8, 2, GOLD_D)
+	# Medal and small sword.
+	ellipse(img, 29, 13, 4.5, 4.5, OUT)
+	ellipse(img, 29, 13, 3.5, 3.5, GOLD)
+	put(img, 28, 12, FOAM)
+	rect(img, 28, 17, 3, 4, RED)
+	rect(img, 8, 28, 24, 3, OUT)
+	rect(img, 9, 29, 16, 1, STONE_L)
+	rect(img, 25, 27, 2, 5, GOLD_D)
+	rect(img, 27, 29, 4, 1, WOOD_L)
+	# Crown on the bottom shelf.
+	for k in 3:
+		rect(img, 14 + k * 4, 34, 3, 3, GOLD)
+	rect(img, 14, 36, 11, 3, GOLD)
+	rect(img, 14, 38, 11, 1, GOLD_D)
+	rect(img, 3, 22, 34, 1, WOOD_L)
+	_cache["trophy"] = tex(img)
+	return _cache["trophy"]
+
+
+# A standing mirror in a carved wooden frame. Origin is the bottom-centre; 26x44.
+static func mirror() -> Texture2D:
+	if _cache.has("mirror"):
+		return _cache["mirror"]
+	var img := canvas(26, 44)
+	ellipse(img, 13, 42, 11, 2, Color(0, 0, 0, 0.3))
+	rect(img, 2, 36, 3, 7, OUT)
+	rect(img, 21, 36, 3, 7, OUT)
+	ellipse(img, 13, 18, 12, 18, OUT)
+	ellipse(img, 13, 18, 11, 17, WOOD_L)
+	ellipse(img, 13, 18, 9, 15, OUT)
+	ellipse(img, 13, 18, 8, 14, Color("bfe3f5"))
+	ellipse(img, 13, 22, 6, 10, Color("d9f1fb"))
+	for k in 6:
+		put(img, 9 + k, 8 + k * 2, FOAM)
+		put(img, 8 + k, 8 + k * 2, Color(1, 1, 1, 0.6))
+	for p in [Vector2i(13, 1), Vector2i(1, 18), Vector2i(25, 18)]:
+		rect(img, p.x - 1, p.y - 1, 3, 3, GOLD)
+	_cache["mirror"] = tex(img)
+	return _cache["mirror"]
+
+
+# A big hand-drawn map pinned to the wall. Origin is the top-left; 52x36.
+static func map_board() -> Texture2D:
+	if _cache.has("map"):
+		return _cache["map"]
+	var img := canvas(52, 36)
+	rect(img, 0, 0, 52, 36, OUT)
+	rect(img, 1, 1, 50, 34, Color("e8d3a0"))
+	rect(img, 1, 1, 50, 2, Color("f2e2b8"))
+	rect(img, 1, 33, 50, 2, Color("c4a870"))
+	# Land, water and forest.
+	ellipse(img, 26, 18, 21, 13, Color("9bc269"))
+	ellipse(img, 36, 24, 9, 6, Color("5aa9ff"))
+	ellipse(img, 10, 24, 5, 4, Color("7fae55"))
+	for p in [Vector2i(10, 10), Vector2i(14, 8), Vector2i(40, 9), Vector2i(44, 12)]:
+		rect(img, p.x, p.y, 3, 4, Color("3e8a3a"))
+	# A road, the town, a cave and an X.
+	for x in range(6, 44):
+		put(img, x, 19 + int(sin(x * 0.3) * 1.5), Color("c9a063"))
+	rect(img, 21, 14, 7, 6, OUT)
+	rect(img, 22, 15, 5, 4, Color("d6736a"))
+	rect(img, 41, 15, 6, 6, OUT)
+	rect(img, 42, 16, 4, 4, Color("2a2540"))
+	for k in 5:
+		put(img, 7 + k, 12 + k, Color("c0392b"))
+		put(img, 11 - k, 12 + k, Color("c0392b"))
+	_cache["map"] = tex(img)
+	return _cache["map"]
+
+
+# A straw training dummy on a wooden post. Origin is the bottom-centre; 24x34.
+static func training_dummy() -> Texture2D:
+	if _cache.has("dummy"):
+		return _cache["dummy"]
+	var img := canvas(24, 34)
+	ellipse(img, 12, 32, 10, 2, Color(0, 0, 0, 0.3))
+	rect(img, 10, 14, 4, 18, OUT)
+	rect(img, 11, 14, 2, 17, WOOD_M)
+	rect(img, 3, 14, 18, 4, OUT)
+	rect(img, 4, 15, 16, 2, WOOD_L)
+	rect(img, 6, 11, 12, 14, OUT)
+	rect(img, 7, 12, 10, 12, Color("d9b86a"))
+	rect(img, 7, 12, 3, 12, Color("f0d890"))
+	for y in [15, 19, 23]:
+		rect(img, 7, y, 10, 1, Color("b89548"))
+	ellipse(img, 12, 6, 6, 6, OUT)
+	ellipse(img, 12, 6, 5, 5, Color("d9b86a"))
+	ellipse(img, 12, 6, 3.4, 3.4, RED)
+	ellipse(img, 12, 6, 2, 2, Color("f5f5f5"))
+	put(img, 12, 6, RED)
+	_cache["dummy"] = tex(img)
+	return _cache["dummy"]
+
+
+# A little pile of coins and a money bag for the bank counter. Origin is the bottom-centre; 22x14.
+static func coin_pile() -> Texture2D:
+	if _cache.has("coins"):
+		return _cache["coins"]
+	var img := canvas(22, 14)
+	ellipse(img, 7, 10, 6, 3.4, OUT)
+	ellipse(img, 7, 10, 5, 2.6, GOLD)
+	ellipse(img, 6, 8, 4, 2.4, OUT)
+	ellipse(img, 6, 8, 3, 1.6, GOLD_D)
+	ellipse(img, 7, 6, 3, 1.5, OUT)
+	ellipse(img, 7, 6, 2, 0.9, GOLD)
+	ellipse(img, 16, 8, 4.5, 5, OUT)
+	ellipse(img, 16, 8, 3.6, 4.2, Color("a8802a"))
+	rect(img, 14, 3, 5, 2, OUT)
+	rect(img, 14, 4, 5, 1, GOLD)
+	put(img, 16, 8, GOLD)
+	_cache["coins"] = tex(img)
+	return _cache["coins"]

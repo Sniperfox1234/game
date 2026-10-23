@@ -49,6 +49,9 @@ var fish_stock := {"common": 0, "uncommon": 0, "rare": 0, "epic": 0, "legendary"
 var fish_log := {} # species name -> times caught
 var fish_claimed: Array = [] # rarities whose fish-book reward was collected
 var rod := 0
+var bank := 0
+var bank_interest := 0 # what the bank paid you most recently
+var kills := {} # monster kind -> times defeated
 var fish: int:
 	get:
 		return fish_total()
@@ -141,6 +144,9 @@ func start_new_game() -> void:
 	fish_log = {}
 	fish_claimed = []
 	rod = 0
+	bank = 0
+	bank_interest = 0
+	kills = {}
 	mushrooms = 0
 	potions = 0
 	cave_floor = 1
@@ -316,6 +322,9 @@ func save_game() -> void:
 		"fish_log": fish_log,
 		"fish_claimed": fish_claimed,
 		"rod": rod,
+		"bank": bank,
+		"bank_interest": bank_interest,
+		"kills": kills,
 		"weapons": weapons,
 		"weapon": weapon,
 		"mp": mp,
@@ -379,6 +388,11 @@ func load_game() -> bool:
 		fish_log[s] = int(d["fish_log"][s])
 	fish_claimed = d.get("fish_claimed", [])
 	rod = int(d.get("rod", 0))
+	bank = int(d.get("bank", 0))
+	bank_interest = int(d.get("bank_interest", 0))
+	kills = {}
+	for k in d.get("kills", {}):
+		kills[k] = int(d["kills"][k])
 	weapons = d.get("weapons", ["training"])
 	weapon = d.get("weapon", "training")
 	mp_bonus = int(d.get("mp_bonus", 0))
@@ -423,6 +437,9 @@ func load_game() -> bool:
 
 
 func _next_day() -> void:
+	# The town treasury pays 5% a day on your savings, up to 30 gold.
+	bank_interest = mini(floori(bank * 0.05), 30)
+	bank += bank_interest
 	day += 1
 	day_changed.emit(day)
 
@@ -626,3 +643,19 @@ func add_buff(kind: String) -> void:
 			buff_aegis_time = 20.0
 		"heart":
 			heal(3)
+
+
+# ---------- bank ----------
+
+func deposit(amount: int) -> int:
+	var n := mini(amount, gold)
+	gold -= n
+	bank += n
+	return n
+
+
+func withdraw(amount: int) -> int:
+	var n := mini(amount, bank)
+	bank -= n
+	gold += n
+	return n

@@ -7,11 +7,17 @@ const PixelArt := preload("res://pixel_art.gd")
 const DecorScript := preload("res://decor.gd")
 const Weapons := preload("res://weapons.gd")
 
-const W := 20
-const H := 14
+const Enemy := preload("res://enemy.gd")
+const DummyScript := preload("res://dummy.gd")
+const SKIN := ["f8d8b8", "f1c27d", "e0ac69", "c68642", "8d5524", "5c3a1e"]
+const HAIR := ["1a1a1a", "4a2c17", "8b5a2b", "d9b44a", "c0392b", "6c8ebf"]
+const SHIRT := ["4f9dde", "e86a6a", "6abf69", "f2c14e", "a66cd8", "f5f5f5"]
+
+var W := 20 # room size in tiles; the town hall is bigger than the shops
+var H := 14
 const COUNTER_TILES := 8
 const COUNTER_POS := Vector2(96, 96) # top-left, in px
-const DOORWAY := Vector2i(9, 11) # tile columns of the gap in the bottom wall
+var DOORWAY := Vector2i(9, 11) # tile columns of the gap in the bottom wall
 
 # floor tiles are picked at random from the list; walls use the dungeon sheet's brick.
 const ROOMS := {
@@ -24,6 +30,14 @@ const ROOMS := {
 		"title": "Merlo's Study", "floor": [0], "wall": 57, "wall_top": 40, "tint": Color(0.6, 0.58, 0.86),
 		"keeper_id": "merlo", "keeper_name": "Merlo the Wise", "keeper_tile": 84,
 		"greeting": "Ah, a visitor! Magic is just physics with better manners. Care to learn a spell?",
+	},
+	"bakery": {
+		"title": "Finn's Bakery", "floor": [0], "wall": 57, "wall_top": 40, "tint": Color(1.0, 0.95, 0.88),
+		"keeper_id": "finn", "keeper_name": "Baker Finn", "keeper_tile": 88,
+		"greeting": "Fresh from the oven! Pull up a chair and eat in, hero. Everything's warm.",
+	},
+	"hall": {
+		"title": "Mossbrook Town Hall", "w": 28, "h": 19, "floor": [0], "wall": 57, "wall_top": 40, "tint": Color(1.0, 0.98, 0.96),
 	},
 	"armory": {
 		"title": "Brann's Armory", "floor": [0, 0, 0, 0, 0, 0, 0, 1], "wall": 57, "wall_top": 40, "tint": Color(0.68, 0.66, 0.8),
@@ -39,13 +53,17 @@ const ROOMS := {
 
 var room_id := "armory"
 var room: Dictionary
+var room_npcs := {}
 
 
 func _ready() -> void:
-	map_w = W
-	map_h = H
 	room_id = GameState.interior if GameState.interior in ROOMS else "armory"
 	room = ROOMS[room_id]
+	W = int(room.get("w", 20))
+	H = int(room.get("h", 14))
+	DOORWAY = Vector2i(floori(W / 2.0) - 1, floori(W / 2.0) + 1)
+	map_w = W
+	map_h = H
 	begin(DUNGEON)
 	use_daylight = false
 	canvas_mod.color = room.tint
@@ -58,15 +76,20 @@ func _ready() -> void:
 			_build_smithy_props()
 		"study":
 			_build_study_props()
+		"bakery":
+			_build_bakery_props()
+		"hall":
+			_build_hall()
 		_:
 			_build_butcher_props()
-	_build_counter()
+	if room_id != "hall":
+		_build_counter()
 
 	GameState.next_spawn = ""
-	spawn_player(Vector2(160, H * 16 - 26))
+	spawn_player(Vector2(W * 8.0, H * 16 - 26))
 	_pin_camera()
 	raids = false
-	finish("Space: talk to the shopkeeper   |   Walk out the bottom door to leave")
+	finish("Space: use stations and talk to people   |   Walk out the bottom door to leave" if room_id == "hall" else "Space: talk to the shopkeeper   |   Walk out the bottom door to leave")
 	hud.toast(room.title)
 
 
@@ -81,7 +104,7 @@ func _area_process(_delta: float) -> void:
 # Zoom out so the whole room fits, and lock the camera in place on the room's centre.
 func _pin_camera() -> void:
 	var cam := player.get_node("Camera2D") as Camera2D
-	var z := 2.8
+	var z := floorf(minf(1152.0 / (W * 16.0), 648.0 / (H * 16.0)) * 0.97 * 10.0) / 10.0
 	cam.zoom = Vector2(z, z)
 	cam.position_smoothing_enabled = false
 	var half := Vector2(1152.0, 648.0) / z / 2.0
@@ -193,6 +216,8 @@ func _open_room_shop() -> void:
 			open_menu("Tilda's Smithy", _fill_smithy)
 		"study":
 			open_menu("Merlo's Study", _fill_study)
+		"bakery":
+			open_menu("Finn's Bakery", _fill_bakery)
 		_:
 			open_menu("Gunnar's Butchery", _fill_butcher)
 
@@ -448,6 +473,437 @@ func _study_buy(what: String) -> void:
 			if ok:
 				hud.toast("Bought a mana potion.")
 	refresh_menu()
+
+
+# ---------- shared helpers for rooms with people ----------
+
+func _add_npc(id: String, display: String, tile: int, pos: Vector2, wander := 0.0, tint := Color.WHITE, block := true) -> Node2D:
+	var npc := Node2D.new()
+	npc.set_script(NpcScript)
+	npc.npc_id = id
+	npc.display_name = display
+	npc.tile = tile
+	npc.position = pos
+	npc.wander_r = wander
+	npc.tint = tint
+	world.add_child(npc)
+	if wander == 0.0 and block:
+		add_blocker(npc, Rect2(-4, -6, 8, 6))
+	room_npcs[id] = npc
+	return npc
+
+
+# Says the NPC's quest dialogue (or an idle line), then runs `then` if given.
+func _say_then(npc: Node2D, then: Callable = Callable()) -> void:
+	var t := Quests.talk(npc.npc_id)
+	var after: Callable = t.get("after", Callable())
+	hud.say(npc.display_name, t.lines, func():
+		if after.is_valid():
+			var msg: String = after.call()
+			if msg != "":
+				hud.toast(msg)
+		if then.is_valid():
+			then.call())
+
+
+func _chat(npc: Node2D) -> void:
+	_say_then(npc)
+
+
+func _open_menu_at(title: String, fill: Callable, pos: Vector2) -> void:
+	menu.position = pos
+	open_menu(title, fill)
+
+
+# Closing any menu puts it back at its usual spot and hides the mirror's preview.
+func close_menu() -> void:
+	super()
+	menu.position = Vector2(316, 120)
+	outfit_backdrop.visible = false
+	outfit_preview.visible = false
+
+
+# ---------- bakery ----------
+
+const BAKERY_ITEMS := [
+	{"id": "roll", "name": "Bread Roll", "price": 4, "desc": "+2 HP", "hp": 2},
+	{"id": "pie", "name": "Meat Pie", "price": 12, "desc": "+5 HP", "hp": 5},
+	{"id": "cake", "name": "Honey Cake", "price": 20, "desc": "+3 HP and Swift for 20 seconds", "hp": 3, "swift": 20.0},
+	{"id": "tart", "name": "Berry Tart", "price": 18, "desc": "+2 HP and +5 mana", "hp": 2, "mp": 5},
+	{"id": "feast", "name": "Hearty Breakfast", "price": 45, "desc": "Heals you fully, plus Rage for 15 seconds", "full": true, "rage": 15.0},
+]
+
+
+func _build_bakery_props() -> void:
+	_sprite_at(PixelArt.checker_floor(18, 11), Vector2(16, 32), -9)
+	_sprite_at(PixelArt.checker_floor(2, 1), Vector2(DOORWAY.x * 16, (H - 1) * 16), -9)
+	_sprite_at(PixelArt.rug(3, 5, Color("e8707f"), Color("fff0f4")), Vector2(136, 130), -6)
+	# Brick ovens glowing at the back, with bread shelves between them.
+	for x in [44.0, 276.0]:
+		var oven := Node2D.new()
+		oven.position = Vector2(x, 56)
+		var o := Sprite2D.new()
+		o.texture = PixelArt.oven()
+		o.centered = false
+		o.position = Vector2(-20, -39)
+		oven.add_child(o)
+		_glow(oven, Vector2(0, -10), Color(1.0, 0.55, 0.2), 1.3, 0.9)
+		world.add_child(oven)
+		add_blocker(oven, Rect2(-18, -22, 36, 22))
+	for x in [96.0, 184.0]:
+		_sprite_at(PixelArt.bread_shelf(), Vector2(x, 2), 2)
+	_sprite_at(PixelArt.pastry_case(2), Vector2(COUNTER_POS.x + 4, COUNTER_POS.y - 14), 1)
+	_sprite_at(PixelArt.pastry_case(2), Vector2(COUNTER_POS.x + 92, COUNTER_POS.y - 14), 1)
+	for x in [14.0, 306.0]:
+		_decor("torch", Vector2(x, 10))
+	# Café tables with a few regulars.
+	var tables := [Vector2(56, 150), Vector2(264, 150), Vector2(56, 196), Vector2(264, 196)]
+	for t in tables:
+		var table := Node2D.new()
+		table.position = t
+		var s := Sprite2D.new()
+		s.texture = PixelArt.cafe_table()
+		s.centered = false
+		s.position = Vector2(-20, -29)
+		table.add_child(s)
+		world.add_child(table)
+		add_blocker(table, Rect2(-14, -12, 28, 12))
+	for c in [["tess", "Tess", 99, Vector2(43, 148), Color(1.0, 0.85, 0.85)], ["bo", "Bo", 86, Vector2(277, 148), Color(0.9, 0.95, 1.1)], ["mina", "Mina", 112, Vector2(43, 194), Color(1.1, 1.0, 0.8)]]:
+		var npc := _add_npc(c[0], c[1], c[2], c[3], 0.0, c[4], false)
+		add_interactable(npc, 26.0, func(): _chat(npc))
+
+
+func _fill_bakery(m: PanelContainer) -> void:
+	var gs := GameState
+	m.add_label("Eat in and feel the difference!   HP %d/%d    MP %d/%d    Gold %d" % [gs.hp, gs.max_hp, gs.mp, gs.max_mp(), gs.gold], UiStyle.MUTED, 16)
+	for item in BAKERY_ITEMS:
+		var useless: bool = gs.hp >= gs.max_hp and not item.has("swift") and not item.has("rage") and not (item.has("mp") and gs.mp < gs.max_mp())
+		m.add_button("%s  (%d gold)    %s" % [item.name, item.price, item.desc], _eat_here.bind(item.id), gs.gold < item.price or useless)
+	m.add_button("Done", close_menu)
+
+
+func _eat_here(id: String) -> void:
+	for item in BAKERY_ITEMS:
+		if item.id != id:
+			continue
+		if GameState.gold < item.price:
+			return
+		GameState.gold -= item.price
+		if item.get("full", false):
+			GameState.hp = GameState.max_hp
+		else:
+			GameState.heal(item.get("hp", 0))
+		if item.has("mp"):
+			GameState.mp = mini(GameState.mp + int(item.mp), GameState.max_mp())
+		if item.has("swift"):
+			GameState.buff_swift = maxf(GameState.buff_swift, float(item.swift))
+		if item.has("rage"):
+			GameState.buff_rage = maxf(GameState.buff_rage, float(item.rage))
+		hud.toast("Yum! The %s hits the spot. %s" % [item.name, item.desc], UiStyle.BORDER)
+	refresh_menu()
+
+
+# ---------- town hall ----------
+
+const GIVER_PLACES := {
+	"rosa": "Town Hall", "gus": "east road", "pip": "the plaza", "lila": "the plaza",
+	"hank": "west road", "odo": "the pond", "dusty": "the gallery", "merlo": "his study",
+}
+const HALL_DESK := Vector2(176, 82)
+const HALL_BANK := Vector2(326, 124)
+
+
+func _wall_sprite(texture: Texture2D, pos: Vector2) -> Sprite2D:
+	return _sprite_at(texture, pos, 2)
+
+
+func _build_hall() -> void:
+	_sprite_at(PixelArt.marble_floor(W - 2, H - 3), Vector2(16, 32), -9)
+	_sprite_at(PixelArt.marble_floor(2, 1), Vector2(DOORWAY.x * 16, (H - 1) * 16), -9)
+	_sprite_at(PixelArt.rug(4, 12, Color("a32a3c"), Color("e8c872")), Vector2(W * 8.0 - 32.0, (H - 1) * 16 - 192.0), -6)
+
+	# The back wall: map, library shelves, banners, notice board, trophy case, torches.
+	var map_pos := Vector2(24, -2)
+	var shelf_pos := Vector2(92, -4)
+	var board_pos := Vector2(300, -2)
+	var trophy_pos := Vector2(372, -8)
+	_wall_sprite(PixelArt.map_board(), map_pos)
+	_wall_sprite(PixelArt.bookshelf(21), shelf_pos)
+	_wall_sprite(PixelArt.bookshelf(22), shelf_pos + Vector2(33, 0))
+	for x in [150.0, 282.0]:
+		_wall_sprite(PixelArt.banner(), Vector2(x, 4))
+	_wall_sprite(PixelArt.notice_board(), board_pos)
+	_wall_sprite(PixelArt.trophy_case(), trophy_pos)
+	for x in [14.0, 84.0, 206.0, 238.0, 362.0, 428.0]:
+		_decor("torch", Vector2(x, 10))
+
+	# Marble pillars and benches along the carpet.
+	for p in [Vector2(112, 204), Vector2(336, 204), Vector2(112, 266), Vector2(336, 266)]:
+		var pillar := Node2D.new()
+		pillar.position = p
+		var ps := Sprite2D.new()
+		ps.texture = PixelArt.pillar()
+		ps.centered = false
+		ps.position = Vector2(-9, -45)
+		pillar.add_child(ps)
+		world.add_child(pillar)
+		add_blocker(pillar, Rect2(-7, -8, 14, 8))
+	for p in [Vector2(150, 236), Vector2(298, 236)]:
+		var bench := _decor("bench", p)
+		add_blocker(bench, Rect2(-12, -8, 24, 8))
+
+	# The mayor's desk, with Rosa behind it.
+	var desk := Node2D.new()
+	desk.position = HALL_DESK
+	var dsprite := Sprite2D.new()
+	dsprite.texture = PixelArt.desk(6)
+	dsprite.centered = false
+	desk.add_child(dsprite)
+	world.add_child(desk)
+	add_blocker(desk, Rect2(0, 4, 96, 22))
+	var rosa := _add_npc("rosa", "Mayor Rosa", 99, Vector2(224, 80), 0.0, Color.WHITE, false)
+	add_interactable(desk, 14.0, func(): _chat(rosa), Rect2(HALL_DESK, Vector2(96, 28)))
+
+	# The treasury counter.
+	var bank := Node2D.new()
+	bank.position = HALL_BANK
+	var bsprite := Sprite2D.new()
+	bsprite.texture = PixelArt.counter(5)
+	bsprite.centered = false
+	bank.add_child(bsprite)
+	world.add_child(bank)
+	add_blocker(bank, Rect2(0, 0, 80, 22))
+	_sprite_at(PixelArt.coin_pile(), HALL_BANK + Vector2(8, -10), 1)
+	_sprite_at(PixelArt.coin_pile(), HALL_BANK + Vector2(50, -10), 1)
+	var bea := _add_npc("bea", "Clerk Bea", 100, HALL_BANK + Vector2(40, -2), 0.0, Color(0.85, 1.05, 1.1), false)
+	add_interactable(bank, 14.0, func(): _say_then(bea, func(): open_menu("Mossbrook Treasury", _fill_bank)), Rect2(HALL_BANK, Vector2(80, 22)))
+
+	# The mirror, and a training dummy to hit.
+	var mirror := Node2D.new()
+	mirror.position = Vector2(396, 262)
+	var ms := Sprite2D.new()
+	ms.texture = PixelArt.mirror()
+	ms.centered = false
+	ms.position = Vector2(-13, -43)
+	mirror.add_child(ms)
+	world.add_child(mirror)
+	add_blocker(mirror, Rect2(-9, -8, 18, 8))
+	add_interactable(mirror, 26.0, _open_mirror)
+	var dummy := Node2D.new()
+	dummy.set_script(DummyScript)
+	dummy.position = Vector2(56, 262)
+	dummy.area = self
+	world.add_child(dummy)
+	add_blocker(dummy, Rect2(-6, -8, 12, 8))
+
+	# Stations on the back wall: all you do is walk up and press Space.
+	add_interactable(world, 22.0, _open_map, Rect2(map_pos, Vector2(52, 36)))
+	add_interactable(world, 22.0, _open_bestiary_direct, Rect2(shelf_pos, Vector2(65, 36)))
+	add_interactable(world, 22.0, func(): open_menu("Quest Board", _fill_board), Rect2(board_pos, Vector2(52, 36)))
+	add_interactable(world, 22.0, func(): _open_menu_at("Hall of Heroes", _fill_trophies, Vector2(316, 60)), Rect2(trophy_pos, Vector2(40, 44)))
+
+	# The people of the town hall.
+	var orin := _add_npc("orin", "Librarian Orin", 111, Vector2(112, 64), 0.0, Color(0.85, 0.95, 1.1))
+	add_interactable(orin, 28.0, func(): _say_then(orin, _open_bestiary_direct))
+	var tam := _add_npc("tam", "Scribe Tam", 88, Vector2(326, 60), 0.0, Color(1.05, 0.95, 0.8))
+	add_interactable(tam, 28.0, func(): _chat(tam))
+	var ned := _add_npc("ned", "Town Crier Ned", 86, Vector2(224, 210), 44.0, Color(1.15, 0.9, 0.8))
+	add_interactable(ned, 28.0, _ned_news)
+	for c in [
+		["brix", "Councilman Brix", 98, Vector2(158, 132), 0.0, Color(0.9, 0.9, 1.15)],
+		["oona", "Councilwoman Oona", 99, Vector2(290, 132), 0.0, Color(1.1, 1.0, 0.8)],
+		["mel", "Mel the Tourist", 85, Vector2(350, 224), 28.0, Color(0.85, 1.1, 0.85)],
+		["pru", "Granny Pru", 100, Vector2(84, 208), 22.0, Color(1.1, 0.9, 1.1)],
+	]:
+		var npc := _add_npc(c[0], c[1], c[2], c[3], c[4], c[5])
+		add_interactable(npc, 28.0, func(): _chat(npc))
+
+
+func _ned_news() -> void:
+	var lines: Array = ["Hear ye, hear ye! It is Day %d in Mossbrook!" % GameState.day]
+	if GameState.flags.get("boss_defeated", false):
+		lines.append("The King Slime has been DEFEATED! Praise be to our hero, %s!" % GameState.player_name)
+	else:
+		lines.append("The King Slime still lurks at the bottom of the old cave. Be brave, be ready!")
+	var tips := [
+		"At night, monsters raid the farm and the town. Sleep in your own bed to be safe!",
+		"The bank pays interest every morning. Save your gold, and it grows!",
+		"Every monster you defeat is recorded in the library. Orin loves a good bestiary.",
+		"The training dummy is free to hit, and it teaches a little every day.",
+		"Hazel's clinic heals for a few coins. Gunnar's meat heals on the go.",
+	]
+	lines.append(tips[randi() % tips.size()])
+	hud.say("Town Crier Ned", lines)
+
+
+func _open_bestiary_direct() -> void:
+	_open_menu_at("Mossbrook Library: Bestiary", _fill_bestiary, Vector2(316, 28))
+
+
+func _open_map() -> void:
+	open_menu("Map of Mossbrook", _fill_map)
+
+
+func _fill_map(m: PanelContainer) -> void:
+	m.add_label("You are in the Town Hall, at the north end of the plaza.", UiStyle.CREAM, 16)
+	for line in [
+		"Your farm: far west along the road. Crops, a pond, and your house.",
+		"Fountain plaza: just south of here. Mara's market, the quest board, and Pip.",
+		"Bakery (north-west), Armory and Smithy: the houses along the north road.",
+		"Merlo's Study and Bram's Builders: north-east. Gunnar's Butchery: far east.",
+		"Wren's Pet Yard: south-west. The pond and Old Odo: south-east.",
+		"Dusty's Shooting Gallery: south of the plaza. Hazel's Clinic: by the hall door.",
+		"The old cave: the very end of the east road. The King Slime sleeps in the chamber below floor 2.",
+	]:
+		m.add_label(line, UiStyle.MUTED, 15)
+	m.add_button("Done", close_menu)
+
+
+# ---------- quest board ----------
+
+func _fill_board(m: PanelContainer) -> void:
+	var active: Array[String] = []
+	var open_jobs: Array[String] = []
+	var done := 0
+	for id in Quests.ORDER:
+		var d: Dictionary = Quests.DEFS[id]
+		var giver: String = d.giver
+		var place: String = GIVER_PLACES.get(giver, "town")
+		if Quests.state(id) == "done":
+			done += 1
+		elif Quests.state(id) == "active":
+			if Quests.is_ready(id):
+				active.append("%s  -  READY! Return to %s (%s)" % [d.title, giver.capitalize(), place])
+			else:
+				active.append("%s  -  %d/%d %s   (%s, %s)" % [d.title, Quests.progress(id), d.goal, d.unit, giver.capitalize(), place])
+		elif Quests.is_available(id):
+			open_jobs.append("%s  -  ask %s at %s" % [d.title, giver.capitalize(), place])
+	m.add_label("YOUR JOBS", UiStyle.BORDER, 17)
+	if active.is_empty():
+		m.add_label("Nothing in progress. Pick a job below!", UiStyle.MUTED, 15)
+	for line in active:
+		m.add_label(line, UiStyle.CREAM, 15)
+	m.add_label("JOBS WAITING FOR A HERO", UiStyle.BORDER, 17)
+	if open_jobs.is_empty():
+		m.add_label("All posted jobs are taken. Check back after more are unlocked.", UiStyle.MUTED, 15)
+	for line in open_jobs:
+		m.add_label(line, UiStyle.CREAM, 15)
+	m.add_label("Completed jobs: %d of %d" % [done, Quests.ORDER.size()], UiStyle.MUTED, 15)
+	m.add_button("Done", close_menu)
+
+
+# ---------- treasury ----------
+
+func _fill_bank(m: PanelContainer) -> void:
+	var gs := GameState
+	m.add_label("Savings: %d gold      In your pocket: %d gold" % [gs.bank, gs.gold], UiStyle.CREAM, 18)
+	m.add_label("Your savings earn 5%% interest every morning (up to 30 gold a day). Last payout: %d gold." % gs.bank_interest, UiStyle.MUTED, 15)
+	m.add_button("Deposit 50", _bank_move.bind(50, true), gs.gold < 1)
+	m.add_button("Deposit 200", _bank_move.bind(200, true), gs.gold < 1)
+	m.add_button("Deposit everything", _bank_move.bind(999999, true), gs.gold < 1)
+	m.add_button("Withdraw 50", _bank_move.bind(50, false), gs.bank < 1)
+	m.add_button("Withdraw everything", _bank_move.bind(999999, false), gs.bank < 1)
+	m.add_button("Done", close_menu)
+
+
+func _bank_move(amount: int, deposit: bool) -> void:
+	var n := GameState.deposit(amount) if deposit else GameState.withdraw(amount)
+	hud.toast(("Deposited %d gold." if deposit else "Withdrew %d gold.") % n)
+	refresh_menu()
+
+
+# ---------- mirror ----------
+
+func _open_mirror() -> void:
+	outfit_backdrop.visible = true
+	outfit_preview.visible = true
+	outfit_preview.queue_redraw()
+	_open_menu_at("The Mirror", _fill_mirror, Vector2(130, 120))
+
+
+func _fill_mirror(m: PanelContainer) -> void:
+	m.add_label("Change how you look. Armor and hats still show on top.", UiStyle.CREAM, 16)
+	m.add_button("Change skin tone  (%d of %d)" % [_index_of(SKIN, GameState.skin_color) + 1, SKIN.size()], _cycle_look.bind("skin"))
+	m.add_button("Change hair colour  (%d of %d)" % [_index_of(HAIR, GameState.hair_color) + 1, HAIR.size()], _cycle_look.bind("hair"))
+	m.add_button("Change outfit colour  (%d of %d)" % [_index_of(SHIRT, GameState.shirt_color) + 1, SHIRT.size()], _cycle_look.bind("shirt"))
+	m.add_button("Done", close_menu)
+
+
+func _index_of(palette: Array, color: Color) -> int:
+	for k in palette.size():
+		if Color(palette[k]).is_equal_approx(color):
+			return k
+	return 0
+
+
+func _cycle_look(part: String) -> void:
+	match part:
+		"skin":
+			GameState.skin_color = Color(SKIN[(_index_of(SKIN, GameState.skin_color) + 1) % SKIN.size()])
+		"hair":
+			GameState.hair_color = Color(HAIR[(_index_of(HAIR, GameState.hair_color) + 1) % HAIR.size()])
+		"shirt":
+			GameState.shirt_color = Color(SHIRT[(_index_of(SHIRT, GameState.shirt_color) + 1) % SHIRT.size()])
+	GameState.equipment_changed.emit()
+	outfit_preview.queue_redraw()
+	player.get_node("Avatar").queue_redraw()
+	refresh_menu()
+
+
+# ---------- bestiary ----------
+
+func _fill_bestiary(m: PanelContainer) -> void:
+	var known := 0
+	for kind in Enemy.KINDS:
+		if int(GameState.kills.get(kind, 0)) > 0:
+			known += 1
+	m.add_label("Monsters you have defeated: %d of %d" % [known, Enemy.KINDS.size()], UiStyle.BORDER, 16)
+	for kind in Enemy.KINDS:
+		var n := int(GameState.kills.get(kind, 0))
+		var d: Dictionary = Enemy.KINDS[kind]
+		var nm: String = Enemy.NAMES.get(kind, String(kind).capitalize())
+		if n > 0:
+			m.add_label("%s   (defeated %d,  %d HP)" % [nm, n, d.hp], UiStyle.CREAM, 15)
+			m.add_label(Enemy.TIPS[kind], UiStyle.MUTED, 13)
+		else:
+			m.add_label("???   Defeat one to write it in the book.", UiStyle.MUTED, 15)
+	m.add_button("Done", close_menu)
+
+
+# ---------- hall of heroes ----------
+
+func _fill_trophies(m: PanelContainer) -> void:
+	var gs := GameState
+	var species := Fish.all_species().size()
+	var found := 0
+	for s in Fish.all_species():
+		if gs.fish_log.has(s):
+			found += 1
+	var done := 0
+	for id in Quests.ORDER:
+		if Quests.state(id) == "done":
+			done += 1
+	m.add_label("%s, level %d.   Gold earned shows in your pockets, glory shows here." % [gs.player_name, gs.level], UiStyle.CREAM, 15)
+	var goals := [
+		[gs.flags.get("boss_defeated", false), "Defeated the King Slime"],
+		[gs.flags.get("royal_chest", false), "Claimed the King's treasure"],
+		[found >= species, "Completed the fish book  (%d / %d species)" % [found, species]],
+		[gs.gallery_best >= 30, "Scored 30 or more at the shooting gallery  (best %d)" % gs.gallery_best],
+		[gs.level >= 10, "Reached level 10"],
+		[gs.house_tier >= 3, "Built the Manor"],
+		[gs.pet != "", "Befriended a pet"],
+		[gs.weapons.size() >= 6, "Owns six or more weapons  (%d)" % gs.weapons.size()],
+		[gs.spell >= 2, "Mastered Fireball II"],
+		[done >= Quests.ORDER.size(), "Completed every job  (%d / %d)" % [done, Quests.ORDER.size()]],
+	]
+	var got := 0
+	for g in goals:
+		var ok: bool = g[0]
+		if ok:
+			got += 1
+		m.add_label("%s  %s" % ["[x]" if ok else "[ ]", g[1]], UiStyle.BORDER if ok else UiStyle.MUTED, 15)
+	m.add_label("%d of %d trophies earned" % [got, goals.size()], UiStyle.CREAM, 16)
+	m.add_button("Done", close_menu)
 
 
 # ---------- butcher ----------

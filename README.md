@@ -19,8 +19,12 @@ Open this folder in Godot 4 (Import > select `project.godot`) and press F5.
 - Farm: crops, a pond, a market stall, small trees to chop for wood, and the road east
 - Mossbrook town: fountain plaza (toss a coin for a wish), town hall, bakery, Bram's Builders, Mara's market,
   Wren's pet yard, a pond, a quest board, and a dozen wandering villagers
-- Shops you can walk into: Brann's Armory (hats and armor), Gunnar's Butchery (meat and steak that heal you),
-  Tilda's Smithy (swords and axes with fire, ice and lightning) and Merlo's Study (fireball spells and mana)
+- Buildings you can walk into: Finn's Bakery (eat in for instant healing and perks), Brann's Armory (hats and
+  armor), Gunnar's Butchery (meat and steak that heal you), Tilda's Smithy (swords and axes with fire, ice and
+  lightning) and Merlo's Study (fireball spells and mana)
+- The Town Hall: a marble hall full of people with stations to use: Mayor Rosa's desk, a quest board that lists every
+  job and who gives it, a bank that pays interest, a mirror to change your look, a library bestiary of monsters
+  you've beaten, a trophy case of achievements, a town map, and a training dummy
 - Fishing: five rarities (common to legendary) that sell for very different prices. React fast on the bite and buy
   better rods from Old Odo, who also keeps a fish book with set rewards
 - Dusty's Shooting Gallery: a carnival mini-game with moving targets, bullseyes and golden targets

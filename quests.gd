@@ -152,6 +152,46 @@ const IDLE := {
 		"Monsters raid the farm at night. Sleeping at home is the safest cure.",
 		"Tilda's Smithy sells swords that burn, freeze and shock. Try them on the boss!",
 	],
+	"tess": [
+		"These pies are the best in the valley. Don't tell Finn I said so!",
+		"I come here every morning. The honey cake gives you a real spring in your step.",
+	],
+	"bo": [
+		"Mmm. The breakfast platter turns grown adults into lions.",
+		"I'm saving my appetite for the harvest festival.",
+	],
+	"mina": [
+		"I hear the bard sings a tune that makes your sword feel lighter.",
+		"Finn burned the first batch today. We don't talk about it.",
+	],
+	"bea": ["The treasury is safe, and your savings earn interest every morning!"],
+	"orin": [
+		"Shhh. This is a library. Well, a very small library.",
+		"Every monster you defeat gets written in the bestiary. Knowledge is power!",
+	],
+	"tam": [
+		"I pin up every job in Mossbrook. The board is never empty!",
+		"Check the board often. New villagers post new requests.",
+	],
+	"brix": [
+		"Councilman Brix. We're debating whether to build a second fountain.",
+		"The town has never been richer. Your doing, no doubt.",
+	],
+	"oona": [
+		"Councilwoman Oona. I voted to pay the hero double. I lost 4 to 3.",
+		"Mind the marble. We polish it daily.",
+	],
+	"mel": [
+		"I'm a tourist! This town has a bank, a fountain AND a dummy you can hit. Lovely!",
+		"Is it true there's a slime the size of a house?",
+	],
+	"pru": [
+		"I've lived in Mossbrook for ninety years. The town hall used to be a barn!",
+		"Back in my day, the King Slime was just a regular slime. Kids these days.",
+	],
+	"ned": [
+		"Hear ye, hear ye!",
+	],
 	"mara": [
 		"Seeds, potions, sharpening and heart charms, all in one stall!",
 		"I buy crops, fish and mushrooms. Rarer fish fetch a lot more gold!",
@@ -267,6 +307,15 @@ static func active_for(npc: String) -> String:
 	return ""
 
 
+static func is_available(id: String) -> bool:
+	if state(id) != "none":
+		return false
+	var d: Dictionary = DEFS[id]
+	if d.needs == "spell":
+		return GameState.spell >= 1
+	return d.needs == "" or state(d.needs) == "done"
+
+
 static func marker(npc: String) -> String:
 	var id := active_for(npc)
 	if id == "":
@@ -371,7 +420,7 @@ static func event(name: String) -> String:
 static func tracker_text() -> String:
 	if GameState.quests.is_empty():
 		if GameState.flags.get("seen_town", false):
-			return "Talk to Rosa, Gus and Pip for jobs!"
+			return "Talk to Rosa (Town Hall), Gus and Pip for jobs!"
 		return "Head east along the road to Mossbrook!"
 	var lines: Array[String] = []
 	for id in ORDER:

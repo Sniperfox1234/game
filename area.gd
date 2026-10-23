@@ -477,6 +477,7 @@ func spawn_powerup(pos: Vector2, kind := "") -> void:
 
 
 func _on_enemy_died(e: Node) -> void:
+	GameState.kills[e.kind] = int(GameState.kills.get(e.kind, 0)) + 1
 	var range_: Vector2i = e.gold_range
 	var gold := randi_range(range_.x, range_.y)
 	GameState.gold += gold

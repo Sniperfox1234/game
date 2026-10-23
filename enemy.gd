@@ -19,6 +19,18 @@ const KINDS := {
 	"king": {"tile": 108, "hp": 40, "speed": 34.0, "radius": 14.0, "contact": 2, "aggro": 170.0, "ai": "king", "gold": Vector2i(60, 60), "xp": 80},
 }
 
+# Shown in the town hall's bestiary once you have defeated one.
+const TIPS := {
+	"slime": "Hops toward you in groups. Weak alone, so don't get surrounded.",
+	"bat": "Fast and weaves side to side. Wait for it to come to you, then swing.",
+	"goblin": "Winds up (it flashes orange), then charges. Dash sideways just as it launches!",
+	"wizard": "Keeps its distance and fires bolts. Close in quickly, or use fireballs.",
+	"ghost": "Floats through walls, slow but relentless. Hits hard if it catches you.",
+	"ogre": "Slow, tough and brutal. Hit it, back off, repeat. Frost Brand helps.",
+	"king": "Fires rings of bolts and calls slimes at half health. Dash through the gaps!",
+}
+const NAMES := {"king": "King Slime"}
+
 var kind := "slime"
 var raider := false # spawned by a night raid
 var ai := "hop"

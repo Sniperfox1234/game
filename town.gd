@@ -104,13 +104,13 @@ func _build_ground() -> void:
 
 
 func _build_buildings() -> void:
-	build_house(Vector2i(4, 9), RED_HOUSE)     # bakery
+	doors["bakery"] = build_house(Vector2i(4, 9), RED_HOUSE)
 	doors["armory"] = build_house(Vector2i(10, 9), GREY_HOUSE)
 	doors["smithy"] = build_house(Vector2i(16, 9), GREY_HOUSE)
 	doors["study"] = build_house(Vector2i(34, 9), RED_HOUSE)
 	build_house(Vector2i(38, 9), GREY_HOUSE)   # builder's workshop
 	doors["butcher"] = build_house(Vector2i(44, 9), RED_HOUSE)
-	build_house(Vector2i(25, 3), HALL)         # town hall
+	doors["hall"] = build_house(Vector2i(25, 3), HALL)
 	_label("Bakery", Vector2(4 * 16 + 32, 9 * 16 + 10))
 	_label("Armory", Vector2(10 * 16 + 32, 9 * 16 + 10))
 	_label("Smithy", Vector2(16 * 16 + 32, 9 * 16 + 10))
@@ -250,13 +250,11 @@ const SPECIAL_NPCS := ["bram", "wren", "mara", "odo", "hazel", "penny", "lark", 
 
 
 func _build_npcs() -> void:
-	_add_npc("rosa", "Mayor Rosa", 99, Vector2(27 * 16, 9 * 16 + 4))
 	_add_npc("captain", "Captain Vale", 97, Vector2(29 * 16, 9 * 16 + 4))
 	_add_npc("pip", "Pip", 85, Vector2(23 * 16, 19 * 16), 44.0)
 	_add_npc("gus", "Gus", 96, Vector2(50 * 16, 19 * 16))
 	_add_npc("durin", "Durin", 87, Vector2(48 * 16, 16 * 16), 14.0)
 	_add_npc("bram", "Bram the Builder", 86, Vector2(40 * 16 + 8, 14 * 16 + 4))
-	_add_npc("finn", "Baker Finn", 88, Vector2(6 * 16 + 8, 14 * 16 + 4), 12.0)
 	_add_npc("odo", "Old Odo", 111, Vector2(40 * 16, 24 * 16 + 8))
 	_add_npc("wren", "Wren", 112, Vector2(10 * 16, 25 * 16 + 4), 18.0)
 	# Newer arrivals. Several are tinted so the same sprites look like different people.
