@@ -108,6 +108,7 @@ func _ready() -> void:
 	_add_keys("eat", [KEY_E])
 	_add_keys("fireball", [KEY_F])
 	_add_keys("mana", [KEY_M])
+	_add_keys("inventory", [KEY_I, KEY_TAB])
 
 
 func _add_keys(action: String, keys: Array) -> void:

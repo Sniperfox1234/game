@@ -11,6 +11,7 @@ Open this folder in Godot 4 (Import > select `project.godot`) and press F5.
 - Arrow keys: move
 - Space / Enter: talk, pick, plant, harvest, fish, trade, open chests; swings your weapon if nothing is in reach
 - X / J: swing weapon. Shift: dash (brief invulnerability)
+- I (or Tab): open the backpack to see everything you own, swap weapon, armor and hat, use potions and food, check quests and change your look
 - F: cast fireball (needs mana). M: drink a mana potion. Q: healing potion. E: eat meat or steak
 - Sleep at your house door to heal, skip the night and save
 - F10 mutes all sound, F11 mutes just the music

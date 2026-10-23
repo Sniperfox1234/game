@@ -14,6 +14,7 @@ const AvatarScript := preload("res://avatar.gd")
 const UiStyle := preload("res://ui_style.gd")
 const Fish := preload("res://fish.gd")
 const Cooking := preload("res://cooking.gd")
+const InventoryScript := preload("res://inventory.gd")
 const InfoMenuScript := preload("res://info_menu.gd")
 const PetScript := preload("res://pet.gd")
 const PowerupScript := preload("res://powerup.gd")
@@ -24,7 +25,7 @@ const FARM_SCENE := "res://farm.tscn"
 const TOWN_SCENE := "res://town.tscn"
 const CAVE_SCENE := "res://dungeon.tscn"
 const INTERIOR_SCENE := "res://interior.tscn"
-const HINT := "Space: act/attack  Shift: dash  F: fireball  Q: potion  E: eat  M: mana"
+const HINT := "Space: act/attack  Shift: dash  I: backpack  F: fireball  Q: potion  E: eat  M: mana"
 const BITE_WINDOW := 0.9
 
 enum FishState { NONE, WAIT, BITE }
@@ -45,6 +46,7 @@ var interactables: Array[Dictionary] = []
 var pickups: Array[Node2D] = []
 var choppables: Array[Dictionary] = []
 var pet_node: Node2D
+var inventory: CanvasLayer
 var minigame: Node # an overlay mini-game (the shooting gallery) that takes over the keys while active
 var pet_entry := {}
 
@@ -116,6 +118,9 @@ func finish(hint: String = HINT) -> void:
 	_build_shop_panel()
 	menu = InfoMenuScript.new()
 	shop_layer.add_child(menu)
+	inventory = InventoryScript.new()
+	inventory.area = self
+	add_child(inventory)
 	spawn_pet()
 
 
@@ -306,6 +311,8 @@ func _interact() -> bool:
 func _unhandled_input(event: InputEvent) -> void:
 	if minigame != null and minigame.get("active"):
 		return
+	if inventory != null and inventory.active:
+		return
 	if menu.visible:
 		if event.is_action_pressed("ui_cancel"):
 			close_menu()
@@ -331,6 +338,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			player.try_attack()
 	elif event.is_action_pressed("attack"):
 		player.try_attack()
+	elif event.is_action_pressed("inventory"):
+		inventory.open()
 	elif event.is_action_pressed("fireball"):
 		if GameState.spell < 1:
 			hud.toast("You haven't learned a spell yet. Merlo's Study in town teaches fireball!")
