@@ -1,45 +1,87 @@
 extends "res://area.gd"
-# The old cave: slimes, a King Slime, and the way back to town.
+# The old cave: two floors of monsters, chests, and the King Slime at the bottom.
 
-const SlimeScript := preload("res://slime.gd")
 const FLOOR := [0, 0, 0, 0, 1]
 const WALL := 57
-const DOOR_ROWS := Vector2i(10, 13) # tile rows of the exit gap in the left wall
-const OBSTACLES := [
-	Vector2i(7, 6), Vector2i(12, 13), Vector2i(15, 5), Vector2i(19, 15),
-	Vector2i(10, 17), Vector2i(23, 7), Vector2i(21, 18), Vector2i(17, 10),
-]
-const SLIME_SPOTS := [
-	Vector2i(8, 4), Vector2i(11, 9), Vector2i(14, 16), Vector2i(17, 7),
-	Vector2i(18, 18), Vector2i(21, 12), Vector2i(22, 4), Vector2i(12, 4),
-]
-const BOSS_SPOT := Vector2i(26, 11)
+const LADDER := 63
+const DOOR_ROWS := Vector2i(10, 13) # tile rows of the openings in the side walls
+const CHEST_CLOSED := 89
+const CHEST_OPEN := 90
+
+# Per-floor layout. Tiles are (x, y) on a 30x22 map.
+const FLOORS := {
+	1: {
+		"light": Color(0.72, 0.72, 0.85),
+		"rocks": [Vector2i(7, 6), Vector2i(12, 13), Vector2i(15, 5), Vector2i(19, 15), Vector2i(10, 17), Vector2i(23, 7), Vector2i(21, 18), Vector2i(17, 10)],
+		"spawns": {
+			"slime": [Vector2i(8, 4), Vector2i(11, 9), Vector2i(14, 16), Vector2i(17, 7), Vector2i(18, 18), Vector2i(21, 12)],
+			"bat": [Vector2i(22, 4), Vector2i(12, 4), Vector2i(24, 16)],
+			"goblin": [Vector2i(20, 9), Vector2i(25, 6), Vector2i(25, 15)],
+		},
+		"chest": {"tile": Vector2i(26, 19), "flag": "chest_1", "gold": 40, "potions": 2},
+		"has_stairs": true,
+	},
+	2: {
+		"light": Color(0.58, 0.58, 0.78),
+		"rocks": [Vector2i(8, 7), Vector2i(11, 15), Vector2i(14, 4), Vector2i(17, 17), Vector2i(19, 9), Vector2i(22, 14), Vector2i(12, 10), Vector2i(23, 5)],
+		"spawns": {
+			"goblin": [Vector2i(7, 5), Vector2i(8, 17), Vector2i(12, 12)],
+			"wizard": [Vector2i(15, 6), Vector2i(16, 18), Vector2i(21, 10)],
+			"ghost": [Vector2i(19, 5), Vector2i(18, 14)],
+			"ogre": [Vector2i(14, 9), Vector2i(21, 16)],
+			"king": [Vector2i(26, 11)],
+		},
+		"chest": {"tile": Vector2i(27, 4), "flag": "chest_2", "gold": 150, "potions": 3},
+		"has_stairs": false,
+	},
+}
+
+var floor_no := 1
+var data: Dictionary
 
 
 func _ready() -> void:
 	map_w = 30
 	map_h = 22
+	floor_no = GameState.cave_floor
+	data = FLOORS[floor_no]
 	begin(DUNGEON)
+	use_daylight = false
+	canvas_mod.color = data.light
 	_build_ground()
 	_build_walls()
-	_build_obstacles()
+	_build_rocks()
+	_build_chest()
 	_spawn_enemies()
-	spawn_player(Vector2(36, 11 * 16 + 12))
-	player.can_attack = true
-	player.died.connect(_on_player_died)
+
+	var spawn := Vector2(36, 11 * 16 + 12)
+	if GameState.next_spawn == "up":
+		spawn = Vector2((map_w - 3) * 16, 11 * 16 + 12)
 	GameState.next_spawn = ""
-	canvas_mod.color = Color(0.72, 0.72, 0.85)
-	finish("Space: swing sword")
+	spawn_player(spawn)
+	finish("Cave floor %d   |   Space/X: sword   Shift: dash   Q: potion" % floor_no)
+	if floor_no == 2:
+		hud.toast("Floor 2. It's darker and meaner down here...")
 
 
-func _process(_delta: float) -> void:
-	if not traveling and player.global_position.x < 8.0:
-		travel(TOWN_SCENE, "cave")
+func _area_process(_delta: float) -> void:
+	if traveling:
+		return
+	var x := player.global_position.x
+	if x < 8.0:
+		if floor_no == 1:
+			travel(TOWN_SCENE, "cave")
+		else:
+			GameState.cave_floor = 1
+			travel(CAVE_SCENE, "up")
+	elif data.has_stairs and x > map_w * 16 - 12:
+		GameState.cave_floor = 2
+		travel(CAVE_SCENE, "down")
 
 
 func _build_ground() -> void:
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 5
+	rng.seed = 5 + floor_no
 	for y in map_h:
 		for x in map_w:
 			set_tile(x, y, FLOOR[rng.randi() % FLOOR.size()])
@@ -50,9 +92,12 @@ func _build_ground() -> void:
 	for y in map_h:
 		set_tile(0, y, WALL)
 		set_tile(map_w - 1, y, WALL)
-	# Open the exit and mark it with a door.
 	for y in range(DOOR_ROWS.x, DOOR_ROWS.y):
 		set_tile(0, y, FLOOR[0])
+		if data.has_stairs:
+			set_tile(map_w - 1, y, FLOOR[0])
+	if data.has_stairs:
+		set_tile(map_w - 2, 11, LADDER)
 
 
 func _build_walls() -> void:
@@ -60,12 +105,18 @@ func _build_walls() -> void:
 	world.add_child(body)
 	var w := map_w * 16
 	var h := map_h * 16
-	var door_top := DOOR_ROWS.x * 16
-	var door_bottom := DOOR_ROWS.y * 16
-	for r in [
-		Rect2(0, 0, w, 32), Rect2(0, h - 16, w, 16), Rect2(w - 16, 0, 16, h),
-		Rect2(0, 0, 16, door_top), Rect2(0, door_bottom, 16, h - door_bottom),
-	]:
+	var top := DOOR_ROWS.x * 16
+	var bottom := DOOR_ROWS.y * 16
+	var rects := [
+		Rect2(0, 0, w, 32), Rect2(0, h - 16, w, 16),
+		Rect2(0, 0, 16, top), Rect2(0, bottom, 16, h - bottom),
+	]
+	if data.has_stairs:
+		rects.append(Rect2(w - 16, 0, 16, top))
+		rects.append(Rect2(w - 16, bottom, 16, h - bottom))
+	else:
+		rects.append(Rect2(w - 16, 0, 16, h))
+	for r in rects:
 		var shape := CollisionShape2D.new()
 		var box := RectangleShape2D.new()
 		box.size = r.size
@@ -74,9 +125,10 @@ func _build_walls() -> void:
 		body.add_child(shape)
 
 
-func _build_obstacles() -> void:
-	for i in OBSTACLES.size():
-		var t: Vector2i = OBSTACLES[i]
+func _build_rocks() -> void:
+	var rocks: Array = data.rocks
+	for i in rocks.size():
+		var t: Vector2i = rocks[i]
 		var rock := Node2D.new()
 		rock.position = Vector2(t.x * 16, (t.y + 1) * 16)
 		rock.add_child(Tiles.sprite(DUNGEON, 65 if i % 2 == 0 else 64, Vector2(0, -16)))
@@ -84,41 +136,34 @@ func _build_obstacles() -> void:
 		add_blocker(rock, Rect2(3, -10, 10, 10))
 
 
+func _build_chest() -> void:
+	var c: Dictionary = data.chest
+	var t: Vector2i = c.tile
+	var chest := Node2D.new()
+	chest.position = Vector2(t.x * 16 + 8, (t.y + 1) * 16)
+	var looted: bool = GameState.flags.get(c.flag, false)
+	var sprite := Tiles.sprite(DUNGEON, CHEST_OPEN if looted else CHEST_CLOSED, Vector2(-8, -16))
+	chest.add_child(sprite)
+	world.add_child(chest)
+	add_blocker(chest, Rect2(-6, -8, 12, 8))
+	add_interactable(chest, 24.0, func(): _open_chest(c, sprite))
+
+
+func _open_chest(c: Dictionary, sprite: Sprite2D) -> void:
+	if GameState.flags.get(c.flag, false):
+		hud.toast("The chest is empty.")
+		return
+	GameState.flags[c.flag] = true
+	GameState.gold += c.gold
+	GameState.potions += c.potions
+	sprite.region_rect = Tiles.region(CHEST_OPEN)
+	hud.toast("Treasure! +%d gold, +%d potions" % [c.gold, c.potions])
+
+
 func _spawn_enemies() -> void:
-	for t in SLIME_SPOTS:
-		_add_slime(t, false)
-	if not GameState.flags.get("boss_defeated", false):
-		_add_slime(BOSS_SPOT, true)
-
-
-func _add_slime(t: Vector2i, boss: bool) -> void:
-	var slime := CharacterBody2D.new()
-	slime.set_script(SlimeScript)
-	slime.setup(boss)
-	slime.position = Vector2(t.x * 16 + 8, (t.y + 1) * 16)
-	slime.died.connect(_on_enemy_died)
-	world.add_child(slime)
-
-
-func _on_enemy_died(enemy: Node) -> void:
-	var boss: bool = enemy.boss
-	var gold := 50 if boss else randi_range(2, 4)
-	GameState.gold += gold
-	var msg := "+%d gold" % gold
-	if not boss and GameState.hp < GameState.max_hp and randf() < 0.3:
-		GameState.heal(1)
-		msg += ", +1 HP"
-	if boss:
-		msg = "The King Slime is defeated! " + msg
-	var quest_msg := Quests.on_kill("boss" if boss else "slime")
-	if quest_msg != "":
-		msg += "   |   " + quest_msg
-	hud.toast(msg)
-
-
-func _on_player_died() -> void:
-	GameState.hp = GameState.max_hp
-	var lost := int(GameState.gold * 0.1)
-	GameState.gold -= lost
-	GameState.flags["passed_out"] = lost
-	travel(FARM_SCENE, "door")
+	var spawns: Dictionary = data.spawns
+	for kind in spawns:
+		if kind == "king" and GameState.flags.get("boss_defeated", false):
+			continue
+		for t in spawns[kind]:
+			spawn_enemy(kind, Vector2(t.x * 16 + 8, (t.y + 1) * 16))

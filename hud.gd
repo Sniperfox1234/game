@@ -30,11 +30,11 @@ func _ready() -> void:
 
 	var hp_back := ColorRect.new()
 	hp_back.color = Color("2e2233")
-	hp_back.position = Vector2(16, 100)
+	hp_back.position = Vector2(16, 108)
 	hp_back.size = Vector2(BAR_W + 4, 16)
 	add_child(hp_back)
 	hp_fill.color = Color("e84a5f")
-	hp_fill.position = Vector2(18, 102)
+	hp_fill.position = Vector2(18, 110)
 	hp_fill.size = Vector2(BAR_W, 12)
 	add_child(hp_fill)
 
@@ -101,9 +101,9 @@ func _show_line() -> void:
 
 func _process(delta: float) -> void:
 	var minutes := int(GameState.time_of_day * 24.0 * 60.0)
-	stats.text = "%s - Day %d  %02d:%02d\nGold: %d   HP: %d/%d\n%s" % [
+	stats.text = "%s - Day %d  %02d:%02d\nGold: %d   HP: %d/%d   Potions: %d\n%s" % [
 		GameState.player_name, GameState.day, floori(minutes / 60.0), minutes % 60,
-		GameState.gold, GameState.hp, GameState.max_hp, hint,
+		GameState.gold, GameState.hp, GameState.max_hp, GameState.potions, hint,
 	]
 	hp_fill.size.x = BAR_W * clampf(float(GameState.hp) / GameState.max_hp, 0.0, 1.0)
 	tracker.text = Quests.tracker_text()

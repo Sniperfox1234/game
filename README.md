@@ -9,14 +9,19 @@ Open this folder in Godot 4 (Import > select `project.godot`) and press F5.
 ## Controls
 
 - Arrow keys: move
-- Space / Enter: plant, harvest, sleep (at the house door), trade (at the stall), talk to townsfolk, swing your sword (in the cave)
-- Walk off the east edge of the farm to reach Mossbrook town; the cave is at the east end of town
+- Space / Enter: talk, pick, plant, harvest, fish, trade, open chests; swings the sword if nothing is in reach
+- X / J: swing sword. Shift: dash (brief invulnerability). Q: drink a healing potion
+- Sleep at your house door to heal, skip the night and save
+
+## The world
+
+- Farm: crops, a pond, a market stall, and a road east
+- Mossbrook town: Mayor Rosa, Gus the guard, Pip, Mara's market, another pond, mushrooms
+- Old cave (east end of town): two floors of slimes, bats, goblins, mages, ghosts, ogres, chests, and the King Slime
+- Night raids: monsters attack the farm and town after dark
 
 ## Progress
 
-- Character creator (name, skin, hair, outfit)
-- Farm with a house, crop plots, day/night cycle
-- Economy: market stall to buy seeds and sell crops
-- Save/load: sleep at the house door to save; Continue on the title screen
-- Town of Mossbrook with NPCs, dialogue and three quests
-- Cave with hopping slimes, a King Slime boss and real-time sword combat
+- Character creator, day/night cycle, save/load
+- Seven quests (harvest, mushrooms, fishing, night raiders, slimes, goblins, King Slime)
+- Shop: seeds, potions, sword upgrades, heart charms; sells crops, fish and mushrooms

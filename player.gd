@@ -6,15 +6,20 @@ const ATTACK_TIME := 0.18
 const ATTACK_COOLDOWN := 0.35
 const INVULN_TIME := 0.9
 const REACH := 20.0
+const DASH_TIME := 0.16
+const DASH_COOLDOWN := 0.7
+const DASH_SPEED := 210.0
 
 @export var speed: float = 70.0
 
-var can_attack := false # areas with enemies turn this on
 var facing := Vector2.DOWN
 var attack_left := 0.0
 var cooldown := 0.0
 var invuln := 0.0
 var knock := Vector2.ZERO
+var dash_left := 0.0
+var dash_cooldown := 0.0
+var dash_dir := Vector2.ZERO
 
 @onready var avatar: Node2D = $Avatar
 
@@ -30,8 +35,20 @@ func _physics_process(delta: float) -> void:
 			facing = Vector2(signf(direction.x), 0.0)
 		else:
 			facing = Vector2(0.0, signf(direction.y))
+
+	dash_cooldown = maxf(dash_cooldown - delta, 0.0)
+	if Input.is_action_just_pressed("dash") and dash_cooldown <= 0.0:
+		dash_dir = direction if direction != Vector2.ZERO else facing
+		dash_left = DASH_TIME
+		dash_cooldown = DASH_COOLDOWN
+		invuln = maxf(invuln, DASH_TIME + 0.1)
+
 	knock = knock.move_toward(Vector2.ZERO, 500.0 * delta)
-	velocity = direction * speed + knock
+	if dash_left > 0.0:
+		dash_left -= delta
+		velocity = dash_dir * DASH_SPEED
+	else:
+		velocity = direction * speed + knock
 	move_and_slide()
 	if direction.x != 0.0:
 		avatar.scale.x = signf(direction.x)
@@ -49,12 +66,10 @@ func _physics_process(delta: float) -> void:
 			avatar.modulate.a = 1.0
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if can_attack and is_physics_processing() and cooldown <= 0.0 and event.is_action_pressed("ui_accept"):
-		_attack()
-
-
-func _attack() -> void:
+# Swings the sword in the facing direction. Does nothing while frozen (dialogue, shop, fishing).
+func try_attack() -> void:
+	if not is_physics_processing() or cooldown > 0.0:
+		return
 	cooldown = ATTACK_COOLDOWN
 	attack_left = ATTACK_TIME
 	queue_redraw()

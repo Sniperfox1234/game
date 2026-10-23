@@ -1,15 +1,24 @@
 extends Node2D
-# Shared scaffolding for the town and the cave: tile ground, y-sorted world, player, HUD, travel.
+# Shared scaffolding for every playable area (farm, town, cave): tile ground, y-sorted world,
+# player, HUD, interaction, fishing, night raids, enemy drops, shop and scene travel.
+# Subclasses build their map in _ready, call finish() last, and override _area_process.
 
 const Tiles := preload("res://tiles.gd")
 const PLAYER_SCENE := preload("res://player.tscn")
 const HudScript := preload("res://hud.gd")
 const Quests := preload("res://quests.gd")
+const EnemyScript := preload("res://enemy.gd")
+const WaterScript := preload("res://water.gd")
+const PickupScript := preload("res://pickup.gd")
 const TOWN := preload("res://assets/town/tiles.png")
 const DUNGEON := preload("res://assets/dungeon/tiles.png")
 const FARM_SCENE := "res://farm.tscn"
 const TOWN_SCENE := "res://town.tscn"
 const CAVE_SCENE := "res://dungeon.tscn"
+const HINT := "Space: act/attack   X: attack   Shift: dash   Q: potion"
+const BITE_WINDOW := 0.9
+
+enum FishState { NONE, WAIT, BITE }
 
 var map_w := 40
 var map_h := 28
@@ -19,6 +28,24 @@ var player: CharacterBody2D
 var hud: CanvasLayer
 var canvas_mod := CanvasModulate.new()
 var traveling := false
+var use_daylight := true
+var raids := false
+
+# Things the player can press Space next to. See add_interactable.
+var interactables: Array[Dictionary] = []
+var pickups: Array[Node2D] = []
+
+var fish_state := FishState.NONE
+var fish_timer := 0.0
+var fish_pond: Node2D
+
+var raid_timer := 6.0
+var was_night := false
+
+var shop_layer := CanvasLayer.new()
+var shop_panel := PanelContainer.new()
+var shop_info := Label.new()
+var shop_buttons := {}
 
 
 func begin(tex: Texture2D) -> void:
@@ -27,6 +54,7 @@ func begin(tex: Texture2D) -> void:
 	add_child(ground)
 	world.y_sort_enabled = true
 	add_child(world)
+	GameState.day_changed.connect(_on_new_day)
 
 
 func set_tile(x: int, y: int, idx: int) -> void:
@@ -51,18 +79,20 @@ func spawn_player(pos: Vector2) -> void:
 	var cam := player.get_node("Camera2D") as Camera2D
 	cam.limit_right = map_w * 16
 	cam.limit_bottom = map_h * 16
+	player.died.connect(_on_player_died)
 
 
-# Call last in _ready: adds the lighting layer and HUD on top of everything.
-func finish(hint: String) -> void:
+# Call last in _ready: adds the lighting layer, HUD and shop panel on top of everything.
+func finish(hint: String = HINT) -> void:
 	add_child(canvas_mod)
 	hud = HudScript.new()
 	hud.hint = hint
 	add_child(hud)
-	hud.dialogue_changed.connect(_on_dialogue_changed)
+	hud.dialogue_changed.connect(func(active: bool): freeze(active))
+	_build_shop_panel()
 
 
-func _on_dialogue_changed(active: bool) -> void:
+func freeze(active: bool) -> void:
 	player.set_physics_process(not active)
 	if active:
 		player.velocity = Vector2.ZERO
@@ -77,6 +107,8 @@ func travel(scene: String, spawn: String) -> void:
 	get_tree().change_scene_to_file(scene)
 
 
+# ---------- scenery helpers ----------
+
 func add_tree(tile: Vector2i, kind: int) -> void:
 	var tops := [4, 3, 4]
 	var bottoms := [16, 15, 16]
@@ -86,6 +118,14 @@ func add_tree(tile: Vector2i, kind: int) -> void:
 	tree.add_child(Tiles.sprite(TOWN, bottoms[kind], Vector2(0, -16)))
 	world.add_child(tree)
 	add_blocker(tree, Rect2(3, -8, 10, 8))
+
+
+func add_small_tree(tile: Vector2i) -> void:
+	var tree := Node2D.new()
+	tree.position = Vector2(tile.x * 16, (tile.y + 1) * 16)
+	tree.add_child(Tiles.sprite(TOWN, 28, Vector2(0, -16)))
+	world.add_child(tree)
+	add_blocker(tree, Rect2(4, -8, 8, 8))
 
 
 # Forest wall around the map edge, leaving out any tree whose tile is inside `gap`.
@@ -114,6 +154,350 @@ func build_house(tile: Vector2i, rows: Array) -> Vector2:
 			base.add_child(Tiles.sprite(TOWN, rows[r][c], Vector2(c * 16, (r - 4) * 16)))
 	add_blocker(base, Rect2(0, -32, 64, 32))
 	return base.position + Vector2(32, 8)
+
+
+# A readable signpost standing at `feet`.
+func add_sign(feet: Vector2, lines: Array) -> void:
+	var board := Node2D.new()
+	board.position = feet
+	board.add_child(Tiles.sprite(TOWN, 83, Vector2(-8, -16)))
+	world.add_child(board)
+	add_blocker(board, Rect2(-5, -8, 10, 8))
+	add_interactable(board, 28.0, func(): hud.say("Sign", lines))
+
+
+func add_pond(tiles: Rect2i) -> void:
+	var pond := Node2D.new()
+	pond.set_script(WaterScript)
+	pond.size = Vector2(tiles.size) * 16.0
+	pond.position = Vector2(tiles.position) * 16.0
+	world.add_child(pond)
+	add_blocker(pond, Rect2(Vector2(2, 2), pond.size - Vector2(4, 4)))
+	add_interactable(pond, 14.0, func(): _start_fishing(pond), Rect2(pond.position, pond.size))
+
+
+func add_mushroom(tile: Vector2i) -> void:
+	var m := Node2D.new()
+	m.set_script(PickupScript)
+	m.position = Vector2(tile.x * 16, (tile.y + 1) * 16)
+	world.add_child(m)
+	pickups.append(m)
+	add_interactable(m, 22.0, func(): _pick_mushroom(m), Rect2(), Callable(m, "is_available"))
+
+
+func _pick_mushroom(m: Node2D) -> void:
+	m.call("take")
+	GameState.mushrooms += 1
+	hud.toast("Picked a mushroom! (%d)" % GameState.mushrooms)
+
+
+# ---------- interaction ----------
+
+# `rect`, if given, makes distance be measured to that world rectangle instead of the node.
+# `active`, if given, is called to ask whether the thing can be used right now.
+func add_interactable(node: Node2D, reach: float, action: Callable, rect := Rect2(), active := Callable()) -> void:
+	interactables.append({"node": node, "reach": reach, "action": action, "rect": rect, "active": active})
+
+
+func _entry_dist(e: Dictionary, feet: Vector2) -> float:
+	var r: Rect2 = e.rect
+	if r.size != Vector2.ZERO:
+		return feet.distance_to(Vector2(clampf(feet.x, r.position.x, r.end.x), clampf(feet.y, r.position.y, r.end.y)))
+	return (e.node as Node2D).global_position.distance_to(feet)
+
+
+func _interact() -> bool:
+	var feet := player.global_position
+	var best := {}
+	var best_d := INF
+	for e in interactables:
+		var active: Callable = e.active
+		if active.is_valid() and not active.call():
+			continue
+		var d := _entry_dist(e, feet)
+		if d < e.reach and d < best_d:
+			best = e
+			best_d = d
+	if best.is_empty():
+		return false
+	var action: Callable = best.action
+	action.call()
+	return true
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if shop_panel.visible:
+		if event.is_action_pressed("ui_cancel"):
+			close_shop()
+		return
+	if hud.busy():
+		return
+	if fish_state != FishState.NONE:
+		if event.is_action_pressed("ui_accept"):
+			_fish_press()
+		elif event.is_action_pressed("ui_cancel"):
+			_end_fishing("You reeled in your line.")
+		return
+	if event.is_action_pressed("ui_accept"):
+		if not _interact():
+			player.try_attack()
+	elif event.is_action_pressed("attack"):
+		player.try_attack()
+	elif event.is_action_pressed("potion"):
+		if GameState.use_potion():
+			hud.toast("Glug! +5 HP")
+		elif GameState.potions <= 0:
+			hud.toast("You have no potions.")
+		else:
+			hud.toast("You're already at full health.")
+
+
+# ---------- per-frame ----------
+
+func _process(delta: float) -> void:
+	if use_daylight:
+		canvas_mod.color = daylight(GameState.time_of_day)
+	_fishing_tick(delta)
+	if raids:
+		_raid_tick(delta)
+	_area_process(delta)
+
+
+func _area_process(_delta: float) -> void:
+	pass
+
+
+func _on_new_day(_day: int) -> void:
+	for p in pickups:
+		p.call("regrow")
+
+
+# ---------- fishing ----------
+
+func _start_fishing(pond: Node2D) -> void:
+	fish_pond = pond
+	fish_state = FishState.WAIT
+	fish_timer = randf_range(1.5, 3.5)
+	freeze(true)
+	pond.call("cast", player.global_position)
+	hud.toast("Fishing...  Space to reel in, Esc to stop")
+
+
+func _fishing_tick(delta: float) -> void:
+	if fish_state == FishState.NONE:
+		return
+	fish_timer -= delta
+	if fish_timer > 0.0:
+		return
+	if fish_state == FishState.WAIT:
+		fish_state = FishState.BITE
+		fish_timer = BITE_WINDOW
+		fish_pond.set("bite", true)
+		hud.toast("A bite! Press Space!")
+	else:
+		_end_fishing("It got away...")
+
+
+func _fish_press() -> void:
+	if fish_state == FishState.WAIT:
+		_end_fishing("Too early! You scared the fish.")
+		return
+	var r := randf()
+	if r < 0.1:
+		_end_fishing("You reeled in an old boot. Nice.")
+	elif r < 0.18:
+		GameState.gold += 15
+		_end_fishing("You found 15 gold in the mud!")
+	else:
+		GameState.fish += 1
+		_end_fishing("Caught a fish! (%d)" % GameState.fish)
+
+
+func _end_fishing(msg: String) -> void:
+	fish_state = FishState.NONE
+	fish_pond.call("reset")
+	freeze(false)
+	hud.toast(msg)
+
+
+# ---------- monsters ----------
+
+func spawn_enemy(kind: String, pos: Vector2, raider := false) -> Node:
+	var e := CharacterBody2D.new()
+	e.set_script(EnemyScript)
+	e.setup(kind)
+	e.raider = raider
+	e.position = pos
+	e.died.connect(_on_enemy_died)
+	world.add_child(e)
+	return e
+
+
+func _on_enemy_died(e: Node) -> void:
+	var range_: Vector2i = e.gold_range
+	var gold := randi_range(range_.x, range_.y)
+	GameState.gold += gold
+	var msg := "+%d gold" % gold
+	if e.boss:
+		msg = "The King Slime is defeated! " + msg
+	elif GameState.hp < GameState.max_hp and randf() < 0.25:
+		GameState.heal(1)
+		msg += ", +1 HP"
+	if not e.boss and randf() < 0.08:
+		GameState.potions += 1
+		msg += ", a potion!"
+	var quest_msg := Quests.on_kill(e.kind, e.raider)
+	if quest_msg != "":
+		msg += "   |   " + quest_msg
+	hud.toast(msg)
+
+
+func _on_player_died() -> void:
+	GameState.hp = GameState.max_hp
+	var lost := int(GameState.gold * 0.1)
+	GameState.gold -= lost
+	GameState.flags["passed_out"] = lost
+	GameState.time_of_day = GameState.MORNING
+	travel(FARM_SCENE, "door")
+
+
+func _is_night() -> bool:
+	var t := GameState.time_of_day
+	return t > 0.78 or t < 0.2
+
+
+# At night, slimes and bats attack the farm and the town.
+func _raid_tick(delta: float) -> void:
+	var night := _is_night()
+	if night != was_night:
+		was_night = night
+		if night:
+			hud.toast("Night falls... monsters are coming out!")
+		elif not get_tree().get_nodes_in_group("raiders").is_empty():
+			hud.toast("Dawn breaks. The raiders fled.")
+	if not night:
+		for r in get_tree().get_nodes_in_group("raiders"):
+			r.queue_free()
+		raid_timer = 6.0
+		return
+	raid_timer -= delta
+	if raid_timer > 0.0 or hud.busy() or shop_panel.visible:
+		return
+	if get_tree().get_nodes_in_group("raiders").size() >= 4:
+		return
+	raid_timer = randf_range(5.0, 9.0)
+	var spot := _free_spot_away(150.0)
+	if spot != Vector2.INF:
+		spawn_enemy("slime" if randf() < 0.7 else "bat", spot, true)
+
+
+func _free_spot_away(min_dist: float) -> Vector2:
+	var space := get_world_2d().direct_space_state
+	for i in 12:
+		var p := Vector2(randf_range(40.0, map_w * 16 - 40.0), randf_range(48.0, map_h * 16 - 40.0))
+		if p.distance_to(player.global_position) < min_dist:
+			continue
+		var q := PhysicsPointQueryParameters2D.new()
+		q.position = p
+		q.collision_mask = 1
+		if space.intersect_point(q, 1).is_empty():
+			return p
+	return Vector2.INF
+
+
+# ---------- shop ----------
+
+func open_shop() -> void:
+	freeze(true)
+	_refresh_shop()
+	shop_panel.visible = true
+	(shop_buttons["seed"] as Button).grab_focus()
+
+
+func close_shop() -> void:
+	shop_panel.visible = false
+	freeze(false)
+
+
+func _build_shop_panel() -> void:
+	add_child(shop_layer)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	var title := Label.new()
+	title.text = "Market  (Esc to leave)"
+	title.add_theme_font_size_override("font_size", 22)
+	box.add_child(title)
+	shop_info.add_theme_font_size_override("font_size", 16)
+	box.add_child(shop_info)
+	for entry in [
+		["seed", _shop_buy_seed], ["potion", _shop_buy_potion], ["sword", _shop_upgrade_sword],
+		["charm", _shop_buy_charm], ["sell", _shop_sell], ["leave", close_shop],
+	]:
+		var b := Button.new()
+		b.pressed.connect(entry[1])
+		box.add_child(b)
+		shop_buttons[entry[0]] = b
+	shop_panel.add_child(box)
+	shop_panel.position = Vector2(340, 110)
+	shop_panel.custom_minimum_size = Vector2(470, 0)
+	shop_panel.visible = false
+	shop_layer.add_child(shop_panel)
+
+
+func _refresh_shop() -> void:
+	var gs := GameState
+	shop_info.text = "Gold: %d     Seeds: %d     Potions: %d\nCrops: %d     Fish: %d     Mushrooms: %d" % [
+		gs.gold, gs.seeds, gs.potions, gs.crops, gs.fish, gs.mushrooms]
+	var b: Dictionary = shop_buttons
+	b.seed.text = "Buy a seed (%d gold)" % gs.SEED_PRICE
+	b.seed.disabled = gs.gold < gs.SEED_PRICE
+	b.potion.text = "Buy a healing potion (%d gold)  -  Q to drink" % gs.POTION_PRICE
+	b.potion.disabled = gs.gold < gs.POTION_PRICE
+	if gs.damage >= gs.MAX_DAMAGE:
+		b.sword.text = "Sword fully sharpened"
+		b.sword.disabled = true
+	else:
+		b.sword.text = "Sharpen sword: damage %d -> %d (%d gold)" % [gs.damage, gs.damage + 1, gs.sword_cost()]
+		b.sword.disabled = gs.gold < gs.sword_cost()
+	if gs.max_hp >= gs.MAX_HP_CAP:
+		b.charm.text = "Heart charms: maxed out"
+		b.charm.disabled = true
+	else:
+		b.charm.text = "Heart charm: +2 max HP (%d gold)" % gs.charm_cost()
+		b.charm.disabled = gs.gold < gs.charm_cost()
+	b.sell.text = "Sell crops, fish and mushrooms (%d gold)" % gs.sale_value()
+	b.sell.disabled = gs.sale_value() <= 0
+	b.leave.text = "Leave"
+
+
+func _shop_buy_seed() -> void:
+	if GameState.gold >= GameState.SEED_PRICE:
+		GameState.gold -= GameState.SEED_PRICE
+		GameState.seeds += 1
+	_refresh_shop()
+
+
+func _shop_buy_potion() -> void:
+	if GameState.buy_potion():
+		hud.toast("Bought a healing potion.")
+	_refresh_shop()
+
+
+func _shop_upgrade_sword() -> void:
+	if GameState.upgrade_sword():
+		hud.toast("Your sword hits harder now!")
+	_refresh_shop()
+
+
+func _shop_buy_charm() -> void:
+	if GameState.buy_charm():
+		hud.toast("Max HP is now %d." % GameState.max_hp)
+	_refresh_shop()
+
+
+func _shop_sell() -> void:
+	hud.toast("Sold for %d gold!" % GameState.sell_all())
+	_refresh_shop()
 
 
 # t: 0..1 where 0.25 is 6am, 0.5 noon, 0.75 6pm.
