@@ -12,6 +12,8 @@ const WaterScript := preload("res://water.gd")
 const PickupScript := preload("res://pickup.gd")
 const AvatarScript := preload("res://avatar.gd")
 const UiStyle := preload("res://ui_style.gd")
+const InfoMenuScript := preload("res://info_menu.gd")
+const PetScript := preload("res://pet.gd")
 const Outfits := preload("res://outfits.gd")
 const TOWN := preload("res://assets/town/tiles.png")
 const DUNGEON := preload("res://assets/dungeon/tiles.png")
@@ -37,6 +39,9 @@ var raids := false
 # Things the player can press Space next to. See add_interactable.
 var interactables: Array[Dictionary] = []
 var pickups: Array[Node2D] = []
+var choppables: Array[Dictionary] = []
+var pet_node: Node2D
+var pet_entry := {}
 
 var fish_state := FishState.NONE
 var fish_timer := 0.0
@@ -45,6 +50,8 @@ var fish_pond: Node2D
 var raid_timer := 6.0
 var was_night := false
 
+var menu: PanelContainer
+var menu_fill := Callable()
 var shop_layer := CanvasLayer.new()
 var shop_panel := PanelContainer.new()
 var shop_info := Label.new()
@@ -69,7 +76,7 @@ func set_tile(x: int, y: int, idx: int) -> void:
 	ground.set_cell(Vector2i(x, y), 0, Vector2i(idx % Tiles.COLS, floori(idx / float(Tiles.COLS))))
 
 
-func add_blocker(parent: Node2D, rect: Rect2) -> void:
+func add_blocker(parent: Node2D, rect: Rect2) -> StaticBody2D:
 	var body := StaticBody2D.new()
 	var shape := CollisionShape2D.new()
 	var box := RectangleShape2D.new()
@@ -78,6 +85,7 @@ func add_blocker(parent: Node2D, rect: Rect2) -> void:
 	body.position = rect.get_center()
 	body.add_child(shape)
 	parent.add_child(body)
+	return body
 
 
 func spawn_player(pos: Vector2) -> void:
@@ -98,6 +106,9 @@ func finish(hint: String = HINT) -> void:
 	add_child(hud)
 	hud.dialogue_changed.connect(func(active: bool): freeze(active))
 	_build_shop_panel()
+	menu = InfoMenuScript.new()
+	shop_layer.add_child(menu)
+	spawn_pet()
 
 
 func freeze(active: bool) -> void:
@@ -128,12 +139,59 @@ func add_tree(tile: Vector2i, kind: int) -> void:
 	add_blocker(tree, Rect2(3, -8, 10, 8))
 
 
-func add_small_tree(tile: Vector2i) -> void:
+func add_small_tree(tile: Vector2i, choppable := true) -> void:
 	var tree := Node2D.new()
 	tree.position = Vector2(tile.x * 16, (tile.y + 1) * 16)
 	tree.add_child(Tiles.sprite(TOWN, 28, Vector2(0, -16)))
 	world.add_child(tree)
-	add_blocker(tree, Rect2(4, -8, 8, 8))
+	var body := add_blocker(tree, Rect2(4, -8, 8, 8))
+	if not choppable:
+		return
+	var entry := {"node": tree, "hp": 3, "body": body}
+	choppables.append(entry)
+	add_interactable(tree, 22.0, func(): _chop(entry), Rect2(), func(): return tree.visible)
+
+
+func _chop(entry: Dictionary) -> void:
+	var tree: Node2D = entry.node
+	entry.hp -= 1
+	var tw := create_tween()
+	tw.tween_property(tree, "rotation", 0.12, 0.05)
+	tw.tween_property(tree, "rotation", 0.0, 0.08)
+	if entry.hp > 0:
+		hud.toast("Chop!")
+		return
+	var n := randi_range(2, 3)
+	GameState.wood += n
+	hud.toast("The tree falls! +%d wood (%d)" % [n, GameState.wood])
+	tree.visible = false
+	(entry.body.get_child(0) as CollisionShape2D).set_deferred("disabled", true)
+
+
+# A rock you can mine for stone with Space: three hits and it crumbles.
+func add_ore(tile: Vector2i, sprite_idx: int) -> void:
+	var rock := Node2D.new()
+	rock.position = Vector2(tile.x * 16, (tile.y + 1) * 16)
+	rock.add_child(Tiles.sprite(DUNGEON, sprite_idx, Vector2(0, -16)))
+	world.add_child(rock)
+	var body := add_blocker(rock, Rect2(3, -10, 10, 10))
+	var entry := {"node": rock, "hp": 3, "body": body}
+	add_interactable(rock, 22.0, func(): _mine(entry), Rect2(), func(): return rock.visible)
+
+
+func _mine(entry: Dictionary) -> void:
+	var rock: Node2D = entry.node
+	entry.hp -= 1
+	GameState.stone += 1
+	var tw := create_tween()
+	tw.tween_property(rock, "position:x", rock.position.x + 1.5, 0.04)
+	tw.tween_property(rock, "position:x", rock.position.x, 0.06)
+	if entry.hp > 0:
+		hud.toast("Clink! +1 stone (%d)" % GameState.stone)
+		return
+	hud.toast("The rock crumbles. +1 stone (%d)" % GameState.stone)
+	rock.visible = false
+	(entry.body.get_child(0) as CollisionShape2D).set_deferred("disabled", true)
 
 
 # Forest wall around the map edge, leaving out any tree whose tile is inside `gap`.
@@ -157,21 +215,22 @@ func build_house(tile: Vector2i, rows: Array) -> Vector2:
 	var base := Node2D.new()
 	base.position = Vector2(tile.x * 16, (tile.y + 4) * 16)
 	world.add_child(base)
+	var width: int = rows[0].size()
 	for r in rows.size():
-		for c in 4:
+		for c in width:
 			base.add_child(Tiles.sprite(TOWN, rows[r][c], Vector2(c * 16, (r - 4) * 16)))
-	add_blocker(base, Rect2(0, -32, 64, 32))
-	return base.position + Vector2(32, 8)
+	add_blocker(base, Rect2(0, -32, width * 16, 32))
+	return base.position + Vector2(width * 8, 8)
 
 
 # A readable signpost standing at `feet`.
-func add_sign(feet: Vector2, lines: Array) -> void:
+func add_sign(feet: Vector2, lines: Variant) -> void:
 	var board := Node2D.new()
 	board.position = feet
 	board.add_child(Tiles.sprite(TOWN, 83, Vector2(-8, -16)))
 	world.add_child(board)
 	add_blocker(board, Rect2(-5, -8, 10, 8))
-	add_interactable(board, 28.0, func(): hud.say("Sign", lines))
+	add_interactable(board, 28.0, func(): hud.say("Sign", lines.call() if lines is Callable else lines))
 
 
 func add_pond(tiles: Rect2i) -> void:
@@ -234,6 +293,10 @@ func _interact() -> bool:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if menu.visible:
+		if event.is_action_pressed("ui_cancel"):
+			close_menu()
+		return
 	if outfit_panel.visible:
 		if event.is_action_pressed("ui_cancel"):
 			_close_outfitter()
@@ -282,6 +345,10 @@ func _area_process(_delta: float) -> void:
 func _on_new_day(_day: int) -> void:
 	for p in pickups:
 		p.call("regrow")
+	for c in choppables:
+		c.hp = 3
+		c.node.visible = true
+		(c.body.get_child(0) as CollisionShape2D).set_deferred("disabled", false)
 
 
 # ---------- fishing ----------
@@ -361,6 +428,11 @@ func _on_enemy_died(e: Node) -> void:
 	var quest_msg := Quests.on_kill(e.kind, e.raider)
 	if quest_msg != "":
 		msg += "   |   " + quest_msg
+	msg += "   |   +%d XP" % e.xp_value
+	if GameState.add_xp(e.xp_value) > 0:
+		msg += "   LEVEL UP! You are level %d." % GameState.level
+		if GameState.level == GameState.PET_LEVEL:
+			msg += " Wren in town can give you a pet!"
 	hud.toast(msg)
 
 
@@ -393,7 +465,7 @@ func _raid_tick(delta: float) -> void:
 		raid_timer = 6.0
 		return
 	raid_timer -= delta
-	if raid_timer > 0.0 or hud.busy() or shop_panel.visible or outfit_panel.visible:
+	if raid_timer > 0.0 or hud.busy() or shop_panel.visible or outfit_panel.visible or menu.visible:
 		return
 	if get_tree().get_nodes_in_group("raiders").size() >= 4:
 		return
@@ -415,6 +487,50 @@ func _free_spot_away(min_dist: float) -> Vector2:
 		if space.intersect_point(q, 1).is_empty():
 			return p
 	return Vector2.INF
+
+
+# ---------- generic menu ----------
+
+# Opens the shared menu. `fill` is called with the menu to (re)populate it whenever it refreshes.
+func open_menu(title: String, fill: Callable) -> void:
+	menu_fill = fill
+	menu.setup(title)
+	menu.clear()
+	fill.call(menu)
+	menu.visible = true
+	freeze(true)
+	menu.focus_button(0)
+
+
+func refresh_menu() -> void:
+	var idx: int = menu.focused_index()
+	menu.clear()
+	menu_fill.call(menu)
+	menu.focus_button(idx)
+
+
+func close_menu() -> void:
+	menu.visible = false
+	freeze(false)
+
+
+# ---------- pet ----------
+
+func spawn_pet() -> void:
+	if pet_node:
+		interactables.erase(pet_entry)
+		pet_node.queue_free()
+		pet_node = null
+	if GameState.pet == "":
+		return
+	var p := CharacterBody2D.new()
+	p.set_script(PetScript)
+	p.kind = GameState.pet
+	p.position = player.position + Vector2(-14, 6)
+	world.add_child(p)
+	pet_node = p
+	add_interactable(p, 20.0, func(): p.call("pet_it", hud))
+	pet_entry = interactables[interactables.size() - 1]
 
 
 # ---------- shop ----------

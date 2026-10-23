@@ -18,6 +18,7 @@ const FLOORS := {
 			"bat": [Vector2i(22, 4), Vector2i(12, 4), Vector2i(24, 16)],
 			"goblin": [Vector2i(20, 9), Vector2i(25, 6), Vector2i(25, 15)],
 		},
+		"ore": [Vector2i(5, 8), Vector2i(9, 19), Vector2i(13, 3), Vector2i(24, 9), Vector2i(27, 13), Vector2i(6, 15)],
 		"chest": {"tile": Vector2i(26, 19), "flag": "chest_1", "gold": 40, "potions": 2},
 		"has_stairs": true,
 	},
@@ -31,6 +32,7 @@ const FLOORS := {
 			"ogre": [Vector2i(14, 9), Vector2i(21, 16)],
 			"king": [Vector2i(26, 11)],
 		},
+		"ore": [Vector2i(5, 10), Vector2i(10, 5), Vector2i(16, 13), Vector2i(20, 19), Vector2i(25, 17), Vector2i(25, 7), Vector2i(9, 18)],
 		"chest": {"tile": Vector2i(27, 4), "flag": "chest_2", "gold": 150, "potions": 3},
 		"has_stairs": false,
 	},
@@ -51,6 +53,9 @@ func _ready() -> void:
 	_build_ground()
 	_build_walls()
 	_build_rocks()
+	var ore: Array = data.ore
+	for i in ore.size():
+		add_ore(ore[i], 12 if i % 2 == 0 else 13)
 	_build_chest()
 	_spawn_enemies()
 

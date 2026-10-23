@@ -3,6 +3,7 @@ extends "res://area.gd"
 
 const PlotScript := preload("res://plot.gd")
 const StallScript := preload("res://stall.gd")
+const Houses := preload("res://houses.gd")
 
 # Kenney Tiny Town tile indices.
 const GRASS := [0, 0, 0, 0, 0, 0, 0, 1, 1, 2]
@@ -16,7 +17,6 @@ const FIELD_RECT := Rect2i(13, 12, 14, 8)
 const HOUSE_TILE := Vector2i(17, 3)
 const EAST_GAP := Rect2i(39, 12, 1, 4) # the road to town
 const REACH := 26.0
-const HOUSE := [[52, 53, 53, 54], [64, 65, 65, 66], [76, 77, 77, 79], [88, 90, 91, 88]]
 
 var plots: Array[Node2D] = []
 var door_pos := Vector2.ZERO
@@ -27,7 +27,8 @@ func _ready() -> void:
 	begin(TOWN)
 	_build_ground()
 	build_forest(EAST_GAP)
-	door_pos = build_house(HOUSE_TILE, HOUSE)
+	var rows: Array = Houses.tier_data(GameState.house_tier).rows
+	door_pos = build_house(Vector2i(HOUSE_TILE.x - (rows[0].size() - 4) / 2, HOUSE_TILE.y), rows)
 	_build_decor()
 	_build_plots()
 	_build_stall()
@@ -99,7 +100,7 @@ func _build_ground() -> void:
 
 
 func _build_decor() -> void:
-	for t in [Vector2i(8, 8), Vector2i(31, 9), Vector2i(9, 22), Vector2i(30, 21)]:
+	for t in [Vector2i(8, 8), Vector2i(31, 9), Vector2i(9, 22), Vector2i(30, 21), Vector2i(4, 5), Vector2i(34, 5), Vector2i(12, 24), Vector2i(36, 21)]:
 		add_small_tree(t)
 	for t in [Vector2i(11, 14), Vector2i(29, 17), Vector2i(20, 24), Vector2i(5, 11), Vector2i(34, 24)]:
 		add_mushroom(t)
@@ -130,8 +131,10 @@ func _build_stall() -> void:
 
 func _sleep() -> void:
 	GameState.sleep()
+	var found := mini(GameState.house_potions(), GameState.POTION_CAP - GameState.potions)
+	GameState.potions += found
 	_save()
-	hud.toast("Good morning! Game saved.")
+	hud.toast("Good morning! Game saved." + ("  You found %d potion%s in the pantry." % [found, "" if found == 1 else "s"] if found > 0 else ""))
 
 
 func _stash() -> void:
@@ -153,6 +156,9 @@ func _restore_plots() -> void:
 			for plot in plots:
 				plot.call("advance_day")
 	GameState.plots_day = GameState.day
+	if GameState.flags.get("house_new", false):
+		GameState.flags.erase("house_new")
+		hud.toast("Your house has been upgraded to a %s!" % Houses.tier_data(GameState.house_tier).name)
 	var lost: int = GameState.flags.get("passed_out", -1)
 	if lost >= 0:
 		GameState.flags.erase("passed_out")

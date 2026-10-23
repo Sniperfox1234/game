@@ -14,7 +14,10 @@ const FISH_PRICE := 9
 const SHROOM_PRICE := 6
 const POTION_PRICE := 20
 const MAX_DAMAGE := 5
-const MAX_HP_CAP := 20
+const MAX_HP_CAP := 40
+const PET_LEVEL := 3
+const PET_PRICE := 100
+const POTION_CAP := 9
 
 var player_name := "Hero"
 var skin_color := Color("f1c27d")
@@ -30,6 +33,12 @@ var fish := 0
 var mushrooms := 0
 var potions := 0
 var cave_floor := 1
+var level := 1
+var xp := 0
+var wood := 0
+var stone := 0
+var house_tier := 1
+var pet := "" # "dog", "bat" or "ghost"; "" for none
 var hats: Array = []
 var hat := ""
 var armors: Array = []
@@ -77,6 +86,12 @@ func start_new_game() -> void:
 	mushrooms = 0
 	potions = 0
 	cave_floor = 1
+	level = 1
+	xp = 0
+	wood = 0
+	stone = 0
+	house_tier = 1
+	pet = ""
 	hats = []
 	hat = ""
 	armors = []
@@ -179,6 +194,12 @@ func save_game() -> void:
 		"mushrooms": mushrooms,
 		"potions": potions,
 		"max_hp": max_hp,
+		"level": level,
+		"xp": xp,
+		"wood": wood,
+		"stone": stone,
+		"house_tier": house_tier,
+		"pet": pet,
 		"hats": hats,
 		"hat": hat,
 		"armors": armors,
@@ -215,6 +236,12 @@ func load_game() -> bool:
 	mushrooms = int(d.get("mushrooms", 0))
 	potions = int(d.get("potions", 0))
 	max_hp = int(d.get("max_hp", 10))
+	level = int(d.get("level", 1))
+	xp = int(d.get("xp", 0))
+	wood = int(d.get("wood", 0))
+	stone = int(d.get("stone", 0))
+	house_tier = int(d.get("house_tier", 1))
+	pet = d.get("pet", "")
 	hats = d.get("hats", [])
 	hat = d.get("hat", "")
 	armors = d.get("armors", [])
@@ -274,3 +301,34 @@ func toggle_armor(id: String) -> String:
 		armor = "" if armor == id else id
 	equipment_changed.emit()
 	return ""
+
+
+func xp_needed() -> int:
+	return 15 + 10 * level
+
+
+# Adds XP and returns how many levels were gained. Each level gives +1 max HP and a full heal.
+func add_xp(amount: int) -> int:
+	xp += amount
+	var gained := 0
+	while xp >= xp_needed():
+		xp -= xp_needed()
+		level += 1
+		gained += 1
+		max_hp = mini(max_hp + 1, MAX_HP_CAP)
+		hp = max_hp
+	return gained
+
+
+func pet_damage() -> int:
+	match pet:
+		"bat":
+			return 1 + floori(level / 5.0)
+		"ghost":
+			return 1 + floori(level / 3.0)
+	return 1 + floori(level / 3.0)
+
+
+# Potions found in the pantry each morning, depending on how grand the house is.
+func house_potions() -> int:
+	return maxi(house_tier - 1, 0)

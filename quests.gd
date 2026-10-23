@@ -92,6 +92,41 @@ const IDLE := {
 		"Gus says the cave goes even deeper than the second floor.",
 		"Sell your crops, fish and mushrooms at Mara's stall in the plaza!",
 		"I want to be a hero when I grow up. Like you!",
+		"Wren at the pet yard gives pets to heroes who are level 3!",
+	],
+	"captain": [
+		"Captain Vale, town watch. Quiet night so far... too quiet.",
+		"Armor reduces every hit you take. Mara's outfitter has some good sets.",
+		"Monsters raid the farm at night. Sleeping at home is the safest cure.",
+	],
+	"tilda": [
+		"Hammering since dawn. A sharper sword makes all the difference.",
+		"Mara handles my sword upgrades. Tell her Tilda sent you!",
+		"Stone from the cave makes the best building material. Ask Bram.",
+	],
+	"bram": [
+		"Need a bigger house? That takes wood, stone and gold.",
+		"Chop small trees for wood. Mine the brown rocks in the cave for stone.",
+	],
+	"finn": [
+		"Fresh bread! ...Sold out, sorry. The farm crops are going to the festival.",
+		"I heard the cave has treasure chests. Don't tell anyone I told you.",
+		"Mushroom soup is Mayor Rosa's secret weapon.",
+	],
+	"odo": [
+		"Shh! You'll scare the fish.",
+		"Wait for the bite, then reel quick. Patience, young one.",
+		"Caught a boot once. Wore it for a year.",
+	],
+	"merlo": [
+		"Ah, a hero! The fountain has magic. Toss a coin and see.",
+		"Ghosts pass through walls. Bats are fast. Goblins charge. Know your enemy!",
+		"The King Slime fires rings of bolts. Dash through the gaps!",
+	],
+	"wren": ["Pets are just the best, aren't they?"],
+	"durin": [
+		"Stone and ore, that's all a dwarf needs.",
+		"The cave's second floor is full of ogres. Hit hard, dash away.",
 	],
 }
 
@@ -210,6 +245,8 @@ static func on_kill(kind: String, raider: bool) -> String:
 # One line per active quest, for the HUD tracker.
 static func tracker_text() -> String:
 	if GameState.quests.is_empty():
+		if GameState.flags.get("seen_town", false):
+			return "Talk to Rosa, Gus and Pip for jobs!"
 		return "Head east along the road to Mossbrook!"
 	var lines: Array[String] = []
 	for id in ORDER:

@@ -132,10 +132,17 @@ func _show_line() -> void:
 
 func _process(delta: float) -> void:
 	var minutes := int(GameState.time_of_day * 24.0 * 60.0)
-	var armor_text := "   Def: %d" % GameState.defense() if GameState.defense() > 0 else ""
-	stats.text = "%s - Day %d  %02d:%02d\nGold: %d   HP: %d/%d   Potions: %d%s\n%s" % [
-		GameState.player_name, GameState.day, floori(minutes / 60.0), minutes % 60,
-		GameState.gold, GameState.hp, GameState.max_hp, GameState.potions, armor_text, hint,
+	var extra := ""
+	if GameState.defense() > 0:
+		extra += "   Def: %d" % GameState.defense()
+	if GameState.wood > 0:
+		extra += "   Wood: %d" % GameState.wood
+	if GameState.stone > 0:
+		extra += "   Stone: %d" % GameState.stone
+	stats.text = "%s  Lv %d (%d/%d XP) - Day %d  %02d:%02d\nGold: %d   HP: %d/%d   Potions: %d%s\n%s" % [
+		GameState.player_name, GameState.level, GameState.xp, GameState.xp_needed(),
+		GameState.day, floori(minutes / 60.0), minutes % 60,
+		GameState.gold, GameState.hp, GameState.max_hp, GameState.potions, extra, hint,
 	]
 	var frac := clampf(float(GameState.hp) / GameState.max_hp, 0.0, 1.0)
 	hp_fill.size.x = maxf(BAR_W * frac, 10.0)

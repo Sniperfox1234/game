@@ -9,13 +9,13 @@ const BoltScript := preload("res://bolt.gd")
 
 # ai: hop (slime), flit (bat), charge (goblin), shoot (mage), float (ghost), walk (ogre), king (boss).
 const KINDS := {
-	"slime": {"tile": 108, "hp": 3, "speed": 26.0, "radius": 7.0, "contact": 1, "aggro": 90.0, "ai": "hop", "gold": Vector2i(2, 4)},
-	"bat": {"tile": 124, "hp": 2, "speed": 58.0, "radius": 6.0, "contact": 1, "aggro": 130.0, "ai": "flit", "gold": Vector2i(2, 3)},
-	"goblin": {"tile": 112, "hp": 4, "speed": 38.0, "radius": 7.0, "contact": 2, "aggro": 110.0, "ai": "charge", "gold": Vector2i(4, 7)},
-	"wizard": {"tile": 84, "hp": 3, "speed": 30.0, "radius": 7.0, "contact": 1, "aggro": 150.0, "ai": "shoot", "gold": Vector2i(5, 8)},
-	"ghost": {"tile": 121, "hp": 4, "speed": 24.0, "radius": 7.0, "contact": 2, "aggro": 170.0, "ai": "float", "gold": Vector2i(5, 8)},
-	"ogre": {"tile": 109, "hp": 9, "speed": 24.0, "radius": 9.0, "contact": 3, "aggro": 110.0, "ai": "walk", "gold": Vector2i(10, 15)},
-	"king": {"tile": 108, "hp": 18, "speed": 34.0, "radius": 14.0, "contact": 2, "aggro": 170.0, "ai": "king", "gold": Vector2i(60, 60)},
+	"slime": {"tile": 108, "hp": 3, "speed": 26.0, "radius": 7.0, "contact": 1, "aggro": 90.0, "ai": "hop", "gold": Vector2i(2, 4), "xp": 3},
+	"bat": {"tile": 124, "hp": 2, "speed": 58.0, "radius": 6.0, "contact": 1, "aggro": 130.0, "ai": "flit", "gold": Vector2i(2, 3), "xp": 3},
+	"goblin": {"tile": 112, "hp": 4, "speed": 38.0, "radius": 7.0, "contact": 2, "aggro": 110.0, "ai": "charge", "gold": Vector2i(4, 7), "xp": 6},
+	"wizard": {"tile": 84, "hp": 3, "speed": 30.0, "radius": 7.0, "contact": 1, "aggro": 150.0, "ai": "shoot", "gold": Vector2i(5, 8), "xp": 8},
+	"ghost": {"tile": 121, "hp": 4, "speed": 24.0, "radius": 7.0, "contact": 2, "aggro": 170.0, "ai": "float", "gold": Vector2i(5, 8), "xp": 8},
+	"ogre": {"tile": 109, "hp": 9, "speed": 24.0, "radius": 9.0, "contact": 3, "aggro": 110.0, "ai": "walk", "gold": Vector2i(10, 15), "xp": 14},
+	"king": {"tile": 108, "hp": 18, "speed": 34.0, "radius": 14.0, "contact": 2, "aggro": 170.0, "ai": "king", "gold": Vector2i(60, 60), "xp": 80},
 }
 
 var kind := "slime"
@@ -28,6 +28,7 @@ var radius := 7.0
 var contact := 1
 var aggro := 90.0
 var gold_range := Vector2i(2, 4)
+var xp_value := 3
 var scale_f := 1.0
 var base_color := Color.WHITE
 
@@ -61,6 +62,7 @@ func setup(k: String) -> void:
 	contact = d.contact
 	aggro = d.aggro
 	gold_range = d.gold
+	xp_value = d.xp
 	if k == "king":
 		scale_f = 2.0
 		base_color = Color("ffd24a")
