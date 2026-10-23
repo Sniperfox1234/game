@@ -1,9 +1,11 @@
 extends Node2D
-# Small bits of scenery drawn from shapes. Set `kind` before adding to the tree:
-#   lamp, bench, flowers (w x h px bed), fence (w x h px rectangle with a gap), critter (tile).
+# Small bits of scenery. Set `kind` before adding to the tree:
+#   lamp (lights up at night), bench, flowers (a planter w px wide), fence (w x h px rectangle with
+#   a gap in the top edge), critter (a dungeon-sheet sprite that hops about).
 # Origin is the bottom-centre, except flowers and fence where it is the top-left corner.
 
 const Tiles := preload("res://tiles.gd")
+const PixelArt := preload("res://pixel_art.gd")
 const DUNGEON := preload("res://assets/dungeon/tiles.png")
 
 var kind := "lamp"
@@ -11,26 +13,48 @@ var w := 32.0
 var h := 16.0
 var gap := Vector2.ZERO # fence: x range of the opening along the top edge, in px from the left
 var tile := 120
+
 var _t := randf() * 10.0
-var _dots: Array = []
+var _light: PointLight2D
+var _check := 0.0
 
 
 func _ready() -> void:
-	if kind == "flowers":
-		z_index = -6
-		var rng := RandomNumberGenerator.new()
-		rng.seed = int(position.x * 31 + position.y)
-		var colors := [Color("ff6b8b"), Color("f2c14e"), Color("b86bff"), Color("ffffff"), Color("ff9f43")]
-		for i in int(w * h / 22.0):
-			_dots.append([Vector2(rng.randf_range(3, w - 3), rng.randf_range(3, h - 3)), colors[rng.randi() % colors.size()]])
-	elif kind == "critter":
-		var s := Tiles.sprite(DUNGEON, tile, Vector2(-8, -15))
-		s.name = "Sprite"
-		add_child(s)
-	if kind == "critter" or kind == "lamp":
-		set_process(true)
-	else:
-		set_process(false)
+	set_process(false)
+	match kind:
+		"lamp":
+			var s := Sprite2D.new()
+			s.texture = PixelArt.lamp()
+			s.centered = false
+			s.position = Vector2(-8, -33)
+			add_child(s)
+			_light = PointLight2D.new()
+			_light.texture = PixelArt.light()
+			_light.texture_scale = 0.9
+			_light.color = Color(1.0, 0.8, 0.45)
+			_light.position = Vector2(0, -25)
+			_light.visible = false
+			add_child(_light)
+			set_process(true)
+		"bench":
+			var s := Sprite2D.new()
+			s.texture = PixelArt.bench()
+			s.centered = false
+			s.position = Vector2(-12, -16)
+			add_child(s)
+		"flowers":
+			z_index = -6
+			var s := Sprite2D.new()
+			s.texture = PixelArt.flower_bed(maxi(roundi(w / 16.0), 1), int(position.x * 31 + position.y))
+			s.centered = false
+			add_child(s)
+		"critter":
+			var s := Tiles.sprite(DUNGEON, tile, Vector2(-8, -15))
+			s.name = "Sprite"
+			add_child(s)
+			set_process(true)
+		"fence":
+			queue_redraw()
 
 
 func _process(delta: float) -> void:
@@ -39,53 +63,55 @@ func _process(delta: float) -> void:
 		var s := get_node("Sprite") as Sprite2D
 		s.position.y = -15.0 - absf(sin(_t * 3.0)) * 2.0
 		s.flip_h = sin(_t * 0.7) > 0.0
-	else:
-		queue_redraw()
+	elif kind == "lamp":
+		_check -= delta
+		if _check <= 0.0:
+			_check = 0.25
+			_update_light()
+		if _light.visible:
+			_light.energy = _target_energy() + sin(_t * 5.0) * 0.03
+
+
+func _target_energy() -> float:
+	var sun := sin((GameState.time_of_day - 0.25) * TAU)
+	var darkness := 1.0 - clampf(sun * 0.5 + 0.6, 0.0, 1.0)
+	return clampf(darkness * 1.5, 0.0, 1.0)
+
+
+func _update_light() -> void:
+	_light.visible = _target_energy() > 0.05
 
 
 func _draw() -> void:
-	match kind:
-		"lamp":
-			draw_rect(Rect2(-4, -1, 8, 2), Color(0, 0, 0, 0.25))
-			draw_rect(Rect2(-1.5, -22, 3, 21), Color("2e2233"))
-			draw_rect(Rect2(-4, -28, 8, 7), Color("2e2233"))
-			draw_rect(Rect2(-3, -27, 6, 5), Color("ffe9a0"))
-			var glow := 0.18 + 0.05 * sin(_t * 3.0)
-			draw_circle(Vector2(0, -24), 11.0, Color(1.0, 0.9, 0.5, glow))
-		"bench":
-			draw_rect(Rect2(-12, -1, 24, 2), Color(0, 0, 0, 0.25))
-			draw_rect(Rect2(-11, -7, 3, 7), Color("4a2f1a"))
-			draw_rect(Rect2(8, -7, 3, 7), Color("4a2f1a"))
-			draw_rect(Rect2(-12, -10, 24, 4), Color("8a5a2b"))
-			draw_rect(Rect2(-12, -10, 24, 1), Color("a8743b"))
-			draw_rect(Rect2(-12, -15, 24, 3), Color("6b4423"))
-		"flowers":
-			draw_rect(Rect2(0, 0, w, h), Color("5a3b1e"))
-			draw_rect(Rect2(1, 1, w - 2, h - 2), Color("6e4a28"))
-			for d in _dots:
-				var p: Vector2 = d[0]
-				draw_rect(Rect2(p.x, p.y + 1, 1, 2), Color("3e8a3a"))
-				draw_circle(p, 1.6, d[1])
-		"fence":
-			var post := Color("6b4423")
-			var rail := Color("8a5a2b")
-			for edge in [[Vector2(0, 0), Vector2(w, 0), true], [Vector2(0, h), Vector2(w, h), false], [Vector2(0, 0), Vector2(0, h), false], [Vector2(w, 0), Vector2(w, h), false]]:
-				var a: Vector2 = edge[0]
-				var b: Vector2 = edge[1]
-				var n := int(a.distance_to(b) / 12.0)
-				for i in range(n + 1):
-					var p := a.lerp(b, float(i) / maxf(n, 1))
-					if edge[2] and p.x > gap.x and p.x < gap.y:
-						continue
-					draw_rect(Rect2(p.x - 1, p.y - 7, 3, 9), post)
-				if edge[2] and gap != Vector2.ZERO:
-					draw_rect(Rect2(a.x, a.y - 5, gap.x - a.x, 2), rail)
-					draw_rect(Rect2(gap.y, a.y - 5, b.x - gap.y, 2), rail)
-				else:
-					var horizontal: bool = a.y == b.y
-					if horizontal:
-						draw_rect(Rect2(a.x, a.y - 5, b.x - a.x, 2), rail)
-					else:
-						draw_rect(Rect2(a.x - 1, a.y - 5, 2, b.y - a.y), rail)
-		"critter":
-			draw_rect(Rect2(-5, -1, 10, 2), Color(0, 0, 0, 0.25))
+	if kind != "fence":
+		return
+	var post := Color("5a3b1e")
+	var post_light := Color("8a5a2b")
+	var rail := Color("8a5a2b")
+	var edge := Color("2e2233")
+	for e in [[Vector2(0, 0), Vector2(w, 0), true], [Vector2(0, h), Vector2(w, h), false], [Vector2(0, 0), Vector2(0, h), false], [Vector2(w, 0), Vector2(w, h), false]]:
+		var a: Vector2 = e[0]
+		var b: Vector2 = e[1]
+		var is_top: bool = e[2]
+		var horizontal := a.y == b.y
+		# Rails first, so the posts stand in front of them.
+		var spans: Array = [[a, b]]
+		if is_top and gap != Vector2.ZERO:
+			spans = [[a, Vector2(gap.x, a.y)], [Vector2(gap.y, a.y), b]]
+		for s in spans:
+			var p: Vector2 = s[0]
+			var q: Vector2 = s[1]
+			if horizontal:
+				draw_rect(Rect2(p.x, p.y - 6, q.x - p.x, 3), edge)
+				draw_rect(Rect2(p.x, p.y - 5, q.x - p.x, 1), post_light)
+			else:
+				draw_rect(Rect2(p.x - 1, p.y, 3, q.y - p.y), edge)
+				draw_rect(Rect2(p.x, p.y, 1, q.y - p.y), rail)
+		var n := int(a.distance_to(b) / 12.0)
+		for i in range(n + 1):
+			var p := a.lerp(b, float(i) / maxf(n, 1))
+			if is_top and p.x > gap.x - 2.0 and p.x < gap.y + 2.0 and gap != Vector2.ZERO and i > 0 and i < n:
+				continue
+			draw_rect(Rect2(p.x - 2, p.y - 9, 4, 11), edge)
+			draw_rect(Rect2(p.x - 1, p.y - 8, 2, 9), post)
+			draw_rect(Rect2(p.x - 1, p.y - 8, 1, 9), post_light)

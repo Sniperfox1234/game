@@ -130,8 +130,8 @@ func _build_plaza() -> void:
 	fountain.set_script(FountainScript)
 	fountain.position = Vector2(28 * 16, 18 * 16)
 	world.add_child(fountain)
-	add_blocker(fountain, Rect2(-30, -14, 60, 28))
-	add_interactable(fountain, 20.0, _wish, Rect2(fountain.position + Vector2(-30, -14), Vector2(60, 28)))
+	add_blocker(fountain, Rect2(-25, -12, 50, 26))
+	add_interactable(fountain, 20.0, _wish, Rect2(fountain.position + Vector2(-25, -12), Vector2(50, 26)))
 
 	# Mara's market stall, with Mara behind the counter.
 	var stall := Node2D.new()
