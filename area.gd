@@ -10,6 +10,8 @@ const Quests := preload("res://quests.gd")
 const EnemyScript := preload("res://enemy.gd")
 const WaterScript := preload("res://water.gd")
 const PickupScript := preload("res://pickup.gd")
+const AvatarScript := preload("res://avatar.gd")
+const Outfits := preload("res://outfits.gd")
 const TOWN := preload("res://assets/town/tiles.png")
 const DUNGEON := preload("res://assets/dungeon/tiles.png")
 const FARM_SCENE := "res://farm.tscn"
@@ -46,6 +48,11 @@ var shop_layer := CanvasLayer.new()
 var shop_panel := PanelContainer.new()
 var shop_info := Label.new()
 var shop_buttons := {}
+var outfit_panel := PanelContainer.new()
+var outfit_info := Label.new()
+var outfit_buttons := {} # "hat:crown" / "armor:plate" / "back" -> Button
+var outfit_preview := Node2D.new()
+var outfit_backdrop := ColorRect.new()
 
 
 func begin(tex: Texture2D) -> void:
@@ -226,6 +233,10 @@ func _interact() -> bool:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if outfit_panel.visible:
+		if event.is_action_pressed("ui_cancel"):
+			_close_outfitter()
+		return
 	if shop_panel.visible:
 		if event.is_action_pressed("ui_cancel"):
 			close_shop()
@@ -381,7 +392,7 @@ func _raid_tick(delta: float) -> void:
 		raid_timer = 6.0
 		return
 	raid_timer -= delta
-	if raid_timer > 0.0 or hud.busy() or shop_panel.visible:
+	if raid_timer > 0.0 or hud.busy() or shop_panel.visible or outfit_panel.visible:
 		return
 	if get_tree().get_nodes_in_group("raiders").size() >= 4:
 		return
@@ -431,7 +442,7 @@ func _build_shop_panel() -> void:
 	box.add_child(shop_info)
 	for entry in [
 		["seed", _shop_buy_seed], ["potion", _shop_buy_potion], ["sword", _shop_upgrade_sword],
-		["charm", _shop_buy_charm], ["sell", _shop_sell], ["leave", close_shop],
+		["charm", _shop_buy_charm], ["sell", _shop_sell], ["outfits", _open_outfitter], ["leave", close_shop],
 	]:
 		var b := Button.new()
 		b.pressed.connect(entry[1])
@@ -441,7 +452,117 @@ func _build_shop_panel() -> void:
 	shop_panel.position = Vector2(340, 110)
 	shop_panel.custom_minimum_size = Vector2(470, 0)
 	shop_panel.visible = false
+	_solid_panel(shop_panel)
 	shop_layer.add_child(shop_panel)
+	_build_outfit_panel()
+
+
+func _build_outfit_panel() -> void:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	var title := Label.new()
+	title.text = "Mara's Outfitter  (Esc to go back)"
+	title.add_theme_font_size_override("font_size", 22)
+	box.add_child(title)
+	outfit_info.add_theme_font_size_override("font_size", 16)
+	box.add_child(outfit_info)
+	var hats_label := Label.new()
+	hats_label.text = "Hats (just for looks)"
+	hats_label.modulate = Color("f2c14e")
+	box.add_child(hats_label)
+	for id in Outfits.HATS:
+		_add_outfit_button(box, "hat:" + id, _on_outfit_pressed.bind("hat", id))
+	var armor_label := Label.new()
+	armor_label.text = "Armor (takes damage off every hit, min 1)"
+	armor_label.modulate = Color("f2c14e")
+	box.add_child(armor_label)
+	for id in Outfits.ARMOR:
+		_add_outfit_button(box, "armor:" + id, _on_outfit_pressed.bind("armor", id))
+	_add_outfit_button(box, "back", _close_outfitter)
+	outfit_panel.add_child(box)
+	outfit_panel.position = Vector2(150, 30)
+	outfit_panel.custom_minimum_size = Vector2(560, 0)
+	outfit_panel.visible = false
+	_solid_panel(outfit_panel)
+	shop_layer.add_child(outfit_panel)
+
+	outfit_backdrop.color = Color(0.1, 0.12, 0.2, 0.85)
+	outfit_backdrop.position = Vector2(760, 130)
+	outfit_backdrop.size = Vector2(240, 300)
+	outfit_backdrop.visible = false
+	shop_layer.add_child(outfit_backdrop)
+	outfit_preview.set_script(AvatarScript)
+	outfit_preview.position = Vector2(880, 390)
+	outfit_preview.scale = Vector2(9, 9)
+	outfit_preview.visible = false
+	shop_layer.add_child(outfit_preview)
+
+
+func _solid_panel(panel: PanelContainer) -> void:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.14, 0.22, 1.0)
+	style.set_content_margin_all(12)
+	style.set_corner_radius_all(4)
+	panel.add_theme_stylebox_override("panel", style)
+
+
+func _add_outfit_button(box: VBoxContainer, key: String, action: Callable) -> void:
+	var b := Button.new()
+	b.pressed.connect(action)
+	box.add_child(b)
+	outfit_buttons[key] = b
+
+
+func _open_outfitter() -> void:
+	shop_panel.visible = false
+	outfit_panel.visible = true
+	outfit_backdrop.visible = true
+	outfit_preview.visible = true
+	_refresh_outfits()
+	(outfit_buttons["back"] as Button).grab_focus()
+	(outfit_buttons["hat:" + str(Outfits.HATS.keys()[0])] as Button).grab_focus()
+
+
+func _close_outfitter() -> void:
+	outfit_panel.visible = false
+	outfit_backdrop.visible = false
+	outfit_preview.visible = false
+	shop_panel.visible = true
+	_refresh_shop()
+	(shop_buttons["seed"] as Button).grab_focus()
+
+
+func _on_outfit_pressed(kind: String, id: String) -> void:
+	var err := GameState.toggle_hat(id) if kind == "hat" else GameState.toggle_armor(id)
+	if err != "":
+		hud.toast(err)
+	_refresh_outfits()
+
+
+func _outfit_label(name_: String, price: int, extra: String, owned: bool, equipped: bool) -> String:
+	if equipped:
+		return "[Equipped]  %s%s   (click to take off)" % [name_, extra]
+	if owned:
+		return "%s%s   (owned, click to wear)" % [name_, extra]
+	return "%s%s   -   %d gold" % [name_, extra, price]
+
+
+func _refresh_outfits() -> void:
+	outfit_info.text = "Gold: %d" % GameState.gold
+	for id in Outfits.HATS:
+		var h: Dictionary = Outfits.HATS[id]
+		var owned: bool = id in GameState.hats
+		var b: Button = outfit_buttons["hat:" + id]
+		b.text = _outfit_label(h.name, h.price, "", owned, GameState.hat == id)
+		b.disabled = not owned and GameState.gold < h.price
+	for id in Outfits.ARMOR:
+		var a: Dictionary = Outfits.ARMOR[id]
+		var owned: bool = id in GameState.armors
+		var b: Button = outfit_buttons["armor:" + id]
+		b.text = _outfit_label(a.name, a.price, "  (Def +%d)" % a.def, owned, GameState.armor == id)
+		b.disabled = not owned and GameState.gold < a.price
+	(outfit_buttons["back"] as Button).text = "Back to the market"
+	outfit_preview.queue_redraw()
 
 
 func _refresh_shop() -> void:
@@ -467,6 +588,7 @@ func _refresh_shop() -> void:
 		b.charm.disabled = gs.gold < gs.charm_cost()
 	b.sell.text = "Sell crops, fish and mushrooms (%d gold)" % gs.sale_value()
 	b.sell.disabled = gs.sale_value() <= 0
+	b.outfits.text = "Outfitter: hats and armor"
 	b.leave.text = "Leave"
 
 

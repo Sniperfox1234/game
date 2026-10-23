@@ -1,6 +1,9 @@
 extends Node
 
 signal day_changed(day: int)
+signal equipment_changed
+
+const Outfits := preload("res://outfits.gd")
 
 const DAY_LENGTH := 120.0
 const MORNING := 0.25
@@ -27,6 +30,10 @@ var fish := 0
 var mushrooms := 0
 var potions := 0
 var cave_floor := 1
+var hats: Array = []
+var hat := ""
+var armors: Array = []
+var armor := ""
 var plot_data: Array = [] # [[state, age], ...], written by the farm before saving
 var plots_day := 1 # the day the stored plots are up to date for
 var max_hp := 10
@@ -70,6 +77,10 @@ func start_new_game() -> void:
 	mushrooms = 0
 	potions = 0
 	cave_floor = 1
+	hats = []
+	hat = ""
+	armors = []
+	armor = ""
 	plot_data = []
 	plots_day = 1
 	max_hp = 10
@@ -168,6 +179,10 @@ func save_game() -> void:
 		"mushrooms": mushrooms,
 		"potions": potions,
 		"max_hp": max_hp,
+		"hats": hats,
+		"hat": hat,
+		"armors": armors,
+		"armor": armor,
 		"plots": plot_data,
 		"plots_day": plots_day,
 		"hp": hp,
@@ -200,6 +215,10 @@ func load_game() -> bool:
 	mushrooms = int(d.get("mushrooms", 0))
 	potions = int(d.get("potions", 0))
 	max_hp = int(d.get("max_hp", 10))
+	hats = d.get("hats", [])
+	hat = d.get("hat", "")
+	armors = d.get("armors", [])
+	armor = d.get("armor", "")
 	plot_data = d.get("plots", [])
 	plots_day = int(d.get("plots_day", day))
 	hp = int(d.get("hp", max_hp))
@@ -221,3 +240,37 @@ func _next_day() -> void:
 
 func heal(amount: int) -> void:
 	hp = mini(hp + amount, max_hp)
+
+
+func defense() -> int:
+	return Outfits.ARMOR[armor].def if armor != "" else 0
+
+
+# Buys the hat if you don't own it (and equips it); otherwise toggles it on or off.
+# Returns an error message, or "" on success.
+func toggle_hat(id: String) -> String:
+	if not id in hats:
+		var price: int = Outfits.HATS[id].price
+		if gold < price:
+			return "Not enough gold!"
+		gold -= price
+		hats.append(id)
+		hat = id
+	else:
+		hat = "" if hat == id else id
+	equipment_changed.emit()
+	return ""
+
+
+func toggle_armor(id: String) -> String:
+	if not id in armors:
+		var price: int = Outfits.ARMOR[id].price
+		if gold < price:
+			return "Not enough gold!"
+		gold -= price
+		armors.append(id)
+		armor = id
+	else:
+		armor = "" if armor == id else id
+	equipment_changed.emit()
+	return ""

@@ -25,3 +25,4 @@ Open this folder in Godot 4 (Import > select `project.godot`) and press F5.
 - Character creator, day/night cycle, save/load
 - Seven quests (harvest, mushrooms, fishing, night raiders, slimes, goblins, King Slime)
 - Shop: seeds, potions, sword upgrades, heart charms; sells crops, fish and mushrooms
+- Outfitter (in the shop): five hats for style and three armor sets that cut damage

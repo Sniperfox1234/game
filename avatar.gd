@@ -24,12 +24,17 @@ const GRID := [
 const OUTLINE := Color("2e2233")
 const PANTS := Color("3b4a7a")
 const STEP_TIME := 0.16
+const Outfits := preload("res://outfits.gd")
 
 # Set by the player each frame; the sprite only redraws when something visible changes.
 var walking := false
 var facing_up := false
 var _step := 0
 var _step_timer := 0.0
+
+
+func _ready() -> void:
+	GameState.equipment_changed.connect(queue_redraw)
 
 
 func set_motion(is_walking: bool, up: bool) -> void:
@@ -62,6 +67,12 @@ func _draw() -> void:
 		"T": GameState.shirt_color,
 		"P": PANTS,
 	}
+	var armored := GameState.armor != ""
+	if armored:
+		var gear: Dictionary = Outfits.ARMOR[GameState.armor]
+		palette["T"] = gear.torso
+		palette["P"] = gear.legs
+		palette["R"] = gear.trim
 	draw_rect(Rect2(-6, -1, 12, 2), Color(0, 0, 0, 0.25))
 	# Step cycle: 0 stand, 1 left foot forward, 2 stand, 3 right foot forward. Body bobs on 1 and 3.
 	var bob := -1 if walking and _step % 2 == 1 else 0
@@ -74,6 +85,9 @@ func _draw() -> void:
 			# Back view: no face, hair covers the head.
 			if facing_up and (key == "S" or key == "E") and y <= 8:
 				key = "H"
+			# Armor trim: shoulders and gloves.
+			if armored and ((y == 11 and (x == 4 or x == 11)) or (y == 12 and key == "S")):
+				key = "R"
 			var yy := y
 			var xx := x
 			if y >= 14 and walking and _step % 2 == 1:
@@ -82,3 +96,19 @@ func _draw() -> void:
 				xx = clampi(xx, 4, 11)
 			var py: float = yy - 16 + (bob if y < 14 else 0)
 			draw_rect(Rect2(xx - 8, py, 1, 1), palette[key])
+	_draw_hat(bob)
+
+
+func _draw_hat(bob: int) -> void:
+	if GameState.hat == "":
+		return
+	var h: Dictionary = Outfits.HATS[GameState.hat]
+	var rows: Array = h.rows
+	for i in rows.size():
+		var row: String = rows[i]
+		for x in row.length():
+			var c := row[x]
+			if c == ".":
+				continue
+			var col: Color = OUTLINE if c == "O" else (h.a if c == "A" else h.b)
+			draw_rect(Rect2(x - 8, h.y0 + i - 16 + bob, 1, 1), col)

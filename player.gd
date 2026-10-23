@@ -82,7 +82,7 @@ func try_attack() -> void:
 func hurt(amount: int, from: Vector2) -> void:
 	if invuln > 0.0:
 		return
-	GameState.hp = maxi(GameState.hp - amount, 0)
+	GameState.hp = maxi(GameState.hp - maxi(amount - GameState.defense(), 1), 0)
 	invuln = INVULN_TIME
 	knock = (global_position - from).normalized() * 140.0
 	if GameState.hp <= 0:

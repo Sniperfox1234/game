@@ -101,9 +101,10 @@ func _show_line() -> void:
 
 func _process(delta: float) -> void:
 	var minutes := int(GameState.time_of_day * 24.0 * 60.0)
-	stats.text = "%s - Day %d  %02d:%02d\nGold: %d   HP: %d/%d   Potions: %d\n%s" % [
+	var armor_text := "   Def: %d" % GameState.defense() if GameState.defense() > 0 else ""
+	stats.text = "%s - Day %d  %02d:%02d\nGold: %d   HP: %d/%d   Potions: %d%s\n%s" % [
 		GameState.player_name, GameState.day, floori(minutes / 60.0), minutes % 60,
-		GameState.gold, GameState.hp, GameState.max_hp, GameState.potions, hint,
+		GameState.gold, GameState.hp, GameState.max_hp, GameState.potions, armor_text, hint,
 	]
 	hp_fill.size.x = BAR_W * clampf(float(GameState.hp) / GameState.max_hp, 0.0, 1.0)
 	tracker.text = Quests.tracker_text()
