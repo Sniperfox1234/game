@@ -49,6 +49,7 @@ func pet_name() -> String:
 
 func pet_it(hud: Node) -> void:
 	hearts = 1.0
+	Audio.sfx("pet")
 	hud.call("toast", "%s loves it!" % pet_name())
 
 

@@ -42,6 +42,32 @@ const FLOORS := {
 		"has_stairs": true,
 		"boss_gate": true,
 	},
+	4: {
+		"name": "Frostfang Hollow",
+		"light": Color(0.62, 0.78, 1.0),
+		"frozen": true,
+		"rocks": [Vector2i(7, 5), Vector2i(10, 14), Vector2i(14, 7), Vector2i(17, 16), Vector2i(21, 5), Vector2i(23, 12), Vector2i(19, 10), Vector2i(8, 18)],
+		"ore": [Vector2i(5, 9), Vector2i(12, 4), Vector2i(15, 18), Vector2i(26, 8), Vector2i(25, 17), Vector2i(9, 11)],
+		"spawns": {
+			"frostslime": [Vector2i(8, 8), Vector2i(12, 11), Vector2i(15, 15), Vector2i(20, 8), Vector2i(23, 15), Vector2i(17, 4)],
+			"frostbat": [Vector2i(10, 6), Vector2i(22, 10), Vector2i(14, 18)],
+			"snowgob": [Vector2i(18, 13), Vector2i(24, 6), Vector2i(7, 15)],
+			"wraith": [Vector2i(16, 9), Vector2i(21, 17)],
+			"yeti": [Vector2i(13, 12), Vector2i(25, 12)],
+		},
+		"chest": {"tile": Vector2i(27, 19), "flag": "chest_4", "gold": 250, "potions": 3},
+		"has_stairs": true,
+	},
+	5: {
+		"name": "The Frost Titan's Lair",
+		"light": Color(0.5, 0.66, 0.95),
+		"frozen": true,
+		"rocks": [Vector2i(5, 5), Vector2i(5, 16), Vector2i(26, 4), Vector2i(26, 17), Vector2i(11, 3), Vector2i(11, 18), Vector2i(17, 3), Vector2i(17, 18)],
+		"ore": [],
+		"spawns": {"titan": [BOSS_SPOT]},
+		"has_stairs": false,
+		"arena": true,
+	},
 	3: {
 		"name": "The King's Chamber",
 		"light": Color(0.5, 0.44, 0.72),
@@ -57,6 +83,8 @@ var floor_no := 1
 var data: Dictionary
 var royal_chest: Node2D
 var royal_light: PointLight2D
+var stairs := false # is there a way down on this floor?
+var gate_body: StaticBody2D # blocks the king chamber's east gap until he is beaten
 
 
 func _ready() -> void:
@@ -64,10 +92,18 @@ func _ready() -> void:
 	map_h = 22
 	floor_no = GameState.cave_floor
 	data = FLOORS[floor_no]
+	stairs = data.has_stairs or (floor_no == 3 and GameState.flags.get("boss_defeated", false))
 	begin(DUNGEON)
 	use_daylight = false
 	canvas_mod.color = data.light
+	if data.get("frozen", false):
+		ground.modulate = Color(0.75, 0.9, 1.25)
 	_build_ground()
+	if data.get("frozen", false):
+		_sprite_at(PixelArt.ice_floor(28, 19), Vector2(16, 32), -9)
+		_sprite_at(PixelArt.ice_floor(1, 3), Vector2(0, 160), -9)
+		if stairs:
+			_sprite_at(PixelArt.ice_floor(1, 3), Vector2((map_w - 1) * 16, 160), -9)
 	_build_walls()
 	_build_rocks()
 	var ore: Array = data.ore
@@ -90,14 +126,40 @@ func _ready() -> void:
 	_announce()
 
 
+func _boss_alive() -> bool:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.get("boss"):
+			return true
+	return false
+
+
+func music_for() -> String:
+	if data.get("arena", false) and _boss_alive():
+		return "mus_boss"
+	return "mus_frost" if data.get("frozen", false) else "mus_cave"
+
+
+func ambience_for() -> String:
+	return "amb_wind" if data.get("frozen", false) else "amb_cave"
+
+
 func _announce() -> void:
 	if floor_no == 2:
 		hud.toast("Floor 2. It's darker and meaner down here...")
 	elif floor_no == 3:
 		if GameState.flags.get("boss_defeated", false):
-			hud.toast("The chamber is quiet. The King Slime is no more.")
+			hud.toast("The chamber is quiet. A stairway of ice leads down at the east end...")
 		else:
+			Audio.sfx("roar")
 			hud.toast("WARNING: The King Slime awaits! Heal up, then fight!")
+	elif floor_no == 4:
+		hud.toast("Frostfang Hollow. Ice slimes and wraiths slow you down. Keep moving!")
+	elif floor_no == 5:
+		if GameState.flags.get("titan_defeated", false):
+			hud.toast("The lair is silent. The Frost Titan is no more.")
+		else:
+			Audio.sfx("roar")
+			hud.toast("WARNING: The Frost Titan awakens! Stay out of the red circle!")
 
 
 func _area_process(_delta: float) -> void:
@@ -110,7 +172,7 @@ func _area_process(_delta: float) -> void:
 		else:
 			GameState.cave_floor = floor_no - 1
 			travel(CAVE_SCENE, "up")
-	elif data.has_stairs and x > map_w * 16 - 12:
+	elif stairs and x > map_w * 16 - 12:
 		GameState.cave_floor = floor_no + 1
 		travel(CAVE_SCENE, "down")
 
@@ -132,9 +194,9 @@ func _build_ground() -> void:
 		set_tile(map_w - 1, y, WALL)
 	for y in range(DOOR_ROWS.x, DOOR_ROWS.y):
 		set_tile(0, y, FLOOR[0])
-		if data.has_stairs:
+		if stairs:
 			set_tile(map_w - 1, y, FLOOR[0])
-	if data.has_stairs:
+	if stairs:
 		set_tile(map_w - 2, 11, LADDER)
 
 
@@ -149,11 +211,20 @@ func _build_walls() -> void:
 		Rect2(0, 0, w, 32), Rect2(0, h - 16, w, 16),
 		Rect2(0, 0, 16, top), Rect2(0, bottom, 16, h - bottom),
 	]
-	if data.has_stairs:
+	if stairs or floor_no == 3:
 		rects.append(Rect2(w - 16, 0, 16, top))
 		rects.append(Rect2(w - 16, bottom, 16, h - bottom))
 	else:
 		rects.append(Rect2(w - 16, 0, 16, h))
+	if floor_no == 3 and not stairs:
+		gate_body = StaticBody2D.new()
+		var gate_shape := CollisionShape2D.new()
+		var gate_box := RectangleShape2D.new()
+		gate_box.size = Vector2(16, bottom - top)
+		gate_shape.shape = gate_box
+		gate_shape.position = Vector2(w - 8, (top + bottom) / 2.0)
+		gate_body.add_child(gate_shape)
+		world.add_child(gate_body)
 	for r in rects:
 		var shape := CollisionShape2D.new()
 		var box := RectangleShape2D.new()
@@ -176,6 +247,8 @@ func _build_rocks() -> void:
 			rock.add_child(Tiles.sprite(DUNGEON, 19, Vector2(0, -32)))
 		else:
 			rock.add_child(Tiles.sprite(DUNGEON, 65 if i % 2 == 0 else 64, Vector2(0, -16)))
+		if data.get("frozen", false):
+			rock.modulate = Color(0.7, 0.9, 1.4)
 		world.add_child(rock)
 		add_blocker(rock, Rect2(3, -10, 10, 10))
 
@@ -214,18 +287,64 @@ func _build_boss_gate() -> void:
 
 # The boss chamber: a glowing rune ring, torches along the wall, and gargoyle pillars.
 func _build_arena() -> void:
+	var frozen: bool = data.get("frozen", false)
 	var centre := Vector2(BOSS_SPOT.x * 16 + 8, BOSS_SPOT.y * 16 + 8)
 	var rune := PixelArt.rune_circle(150, 100)
-	_sprite_at(rune, centre - Vector2(rune.get_width(), rune.get_height()) / 2.0, -8)
+	var rune_sprite := _sprite_at(rune, centre - Vector2(rune.get_width(), rune.get_height()) / 2.0, -8)
+	if frozen:
+		rune_sprite.modulate = Color(0.6, 0.9, 1.5)
 	for x in [3, 7, 11, 15, 19, 23, 27]:
 		var t := Node2D.new()
 		t.set_script(DecorScript)
 		t.kind = "torch"
 		t.position = Vector2(x * 16 + 4, 12)
+		if frozen:
+			t.light_color = Color(0.65, 0.88, 1.0)
 		world.add_child(t)
-	# If the King is already beaten, his chest is still here (open once you've claimed it).
-	if GameState.flags.get("boss_defeated", false):
+	var done: bool = GameState.flags.get("titan_defeated", false) if floor_no == 5 else GameState.flags.get("boss_defeated", false)
+	# If the boss is already beaten, his chest is still here (open once you've claimed it).
+	if done:
 		_spawn_royal_chest(centre + Vector2(0, 14), false)
+	# After the King falls, a glowing staircase of ice appears at the east end.
+	if floor_no == 3 and stairs:
+		_build_stairs_extras()
+
+
+func _build_stairs_extras() -> void:
+	var label := Label.new()
+	label.text = "FROZEN STAIRS"
+	label.add_theme_font_size_override("font_size", 8)
+	label.add_theme_color_override("font_color", Color("a8e4ff"))
+	label.add_theme_color_override("font_outline_color", Color("2e2233"))
+	label.add_theme_constant_override("outline_size", 3)
+	label.position = Vector2((map_w - 5) * 16 - 2, 8 * 16 + 4)
+	label.z_index = 30
+	world.add_child(label)
+	var glow := PointLight2D.new()
+	glow.texture = PixelArt.light()
+	glow.color = Color(0.6, 0.85, 1.0)
+	glow.texture_scale = 1.4
+	glow.energy = 0.9
+	glow.position = Vector2((map_w - 2) * 16 + 8, 11 * 16 + 8)
+	world.add_child(glow)
+	add_sign(Vector2((map_w - 5) * 16 + 8, 14 * 16), [
+		"With the King Slime gone, a stairway of ice has opened here.",
+		"The Frostfang depths lie below: ice slimes, wraiths and yetis, and something far bigger at the very bottom.",
+	])
+
+
+# Called the moment the King Slime falls: the east wall opens onto a ladder of ice.
+func _open_stairs() -> void:
+	if stairs:
+		return
+	stairs = true
+	if gate_body:
+		gate_body.queue_free()
+		gate_body = null
+	for y in range(DOOR_ROWS.x, DOOR_ROWS.y):
+		set_tile(map_w - 1, y, FLOOR[0])
+	set_tile(map_w - 2, 11, LADDER)
+	_build_stairs_extras()
 
 
 # ---------- chests ----------
@@ -248,6 +367,7 @@ func _open_chest(c: Dictionary, sprite: Sprite2D) -> void:
 		hud.toast("The chest is empty.")
 		return
 	GameState.flags[c.flag] = true
+	Audio.sfx("chest")
 	GameState.gold += c.gold
 	GameState.potions = mini(GameState.potions + c.potions, GameState.POTION_CAP)
 	sprite.region_rect = Tiles.region(CHEST_OPEN)
@@ -257,24 +377,35 @@ func _open_chest(c: Dictionary, sprite: Sprite2D) -> void:
 # ---------- boss prize ----------
 
 func _after_enemy_died(e: Node) -> void:
-	if e.boss and floor_no == 3:
-		hud.toast("THE KING SLIME IS DEFEATED!  A royal chest appears...")
+	if e.boss and e.kind == "king" and floor_no == 3:
+		Audio.sfx("boss_defeat")
+		hud.toast("THE KING SLIME IS DEFEATED!  A royal chest appears, and a frozen stairway opens...")
+		_spawn_royal_chest(e.position + Vector2(0, 8), true)
+		_open_stairs()
+	elif e.boss and e.kind == "titan" and floor_no == 5:
+		Audio.sfx("boss_defeat")
+		hud.toast("THE FROST TITAN IS DEFEATED!  A frozen chest rises from the ice...")
 		_spawn_royal_chest(e.position + Vector2(0, 8), true)
 
 
+func _chest_flag() -> String:
+	return "frost_chest" if floor_no == 5 else "royal_chest"
+
+
 func _spawn_royal_chest(feet: Vector2, with_burst: bool) -> void:
-	var opened: bool = GameState.flags.get("royal_chest", false)
+	var frost := floor_no == 5
+	var opened: bool = GameState.flags.get(_chest_flag(), false)
 	royal_chest = Node2D.new()
 	royal_chest.position = feet
 	var sprite := Sprite2D.new()
-	sprite.texture = PixelArt.royal_chest(opened)
+	sprite.texture = PixelArt.royal_chest(opened, frost)
 	sprite.centered = false
 	sprite.position = Vector2(-14, -25)
 	sprite.name = "Sprite"
 	royal_chest.add_child(sprite)
 	royal_light = PointLight2D.new()
 	royal_light.texture = PixelArt.light()
-	royal_light.color = Color(1.0, 0.85, 0.4)
+	royal_light.color = Color(0.6, 0.9, 1.0) if frost else Color(1.0, 0.85, 0.4)
 	royal_light.texture_scale = 1.4
 	royal_light.energy = 0.9
 	royal_light.position = Vector2(0, -12)
@@ -282,7 +413,10 @@ func _spawn_royal_chest(feet: Vector2, with_burst: bool) -> void:
 	world.add_child(royal_chest)
 	add_blocker(royal_chest, Rect2(-12, -10, 24, 10))
 	if not opened:
-		royal_chest.add_child(_sparkles())
+		var sparkles := _sparkles()
+		if frost:
+			sparkles.color = Color("bfeaff")
+		royal_chest.add_child(sparkles)
 	add_interactable(royal_chest, 28.0, _open_royal_chest)
 	if with_burst:
 		sprite.modulate = Color(3, 3, 3)
@@ -310,18 +444,27 @@ func _sparkles() -> CPUParticles2D:
 
 
 func _open_royal_chest() -> void:
-	if GameState.flags.get("royal_chest", false):
-		hud.toast("The royal chest is empty. You already have the King's treasure!")
+	if GameState.flags.get(_chest_flag(), false):
+		hud.toast("The chest is empty. You already have the treasure!")
 		return
-	hud.say("Royal Chest", [
-		"The lid creaks open and golden light pours out...",
-		"You found the SLIMEBLADE! A legendary sword that glows green: +3 damage, longer reach, and its hits can heal you!",
-		"You found the SLIME KING'S CROWN! It sparkles with every step.",
-		"Plus 400 gold, 3 potions and a rush of experience!",
-	], _claim_prize)
+	if floor_no == 5:
+		hud.say("Frozen Chest", [
+			"The ice cracks and the lid swings open in a cloud of frost...",
+			"You found the TITAN'S FROSTAXE! A giant axe that freezes whatever it hits: +6 damage and a huge swing!",
+			"You found GLACIER PLATE! The best armor in the land: +4 defense.",
+			"You found the FROST TITAN'S CROWN, and 800 gold, 4 potions and a huge rush of experience!",
+		], _claim_frost_prize)
+	else:
+		hud.say("Royal Chest", [
+			"The lid creaks open and golden light pours out...",
+			"You found the SLIMEBLADE! A legendary sword that glows green: +3 damage, longer reach, and its hits can heal you!",
+			"You found the SLIME KING'S CROWN! It sparkles with every step.",
+			"Plus 400 gold, 3 potions and a rush of experience!",
+		], _claim_prize)
 
 
 func _claim_prize() -> void:
+	Audio.sfx("prize")
 	GameState.flags["royal_chest"] = true
 	GameState.flags["slimeblade"] = true
 	if not "slimeblade" in GameState.weapons:
@@ -342,12 +485,39 @@ func _claim_prize() -> void:
 	GameState.save_game()
 
 
+func _claim_frost_prize() -> void:
+	Audio.sfx("prize")
+	GameState.flags["frost_chest"] = true
+	for w in ["frostaxe"]:
+		if not w in GameState.weapons:
+			GameState.weapons.append(w)
+	GameState.weapon = "frostaxe"
+	if not "glacier" in GameState.armors:
+		GameState.armors.append("glacier")
+	GameState.armor = "glacier"
+	if not "frost_crown" in GameState.hats:
+		GameState.hats.append("frost_crown")
+	GameState.hat = "frost_crown"
+	GameState.gold += 800
+	GameState.potions = mini(GameState.potions + 4, GameState.POTION_CAP)
+	GameState.equipment_changed.emit()
+	var levels := GameState.add_xp(400)
+	(royal_chest.get_node("Sprite") as Sprite2D).texture = PixelArt.royal_chest(true, true)
+	var sparkles := royal_chest.get_node_or_null("Sparkles")
+	if sparkles:
+		sparkles.queue_free()
+	hud.toast("Frostaxe, Glacier Plate and the Frost Crown acquired!" + ("  LEVEL UP! You are level %d." % GameState.level if levels > 0 else ""))
+	GameState.save_game()
+
+
 # ---------- monsters ----------
 
 func _spawn_enemies() -> void:
 	var spawns: Dictionary = data.spawns
 	for kind in spawns:
 		if kind == "king" and GameState.flags.get("boss_defeated", false):
+			continue
+		if kind == "titan" and GameState.flags.get("titan_defeated", false):
 			continue
 		for t in spawns[kind]:
 			spawn_enemy(kind, Vector2(t.x * 16 + 8, (t.y + 1) * 16))

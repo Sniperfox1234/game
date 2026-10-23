@@ -6,6 +6,7 @@ signal equipment_changed
 const Outfits := preload("res://outfits.gd")
 const Fish := preload("res://fish.gd")
 const Weapons := preload("res://weapons.gd")
+const Cooking := preload("res://cooking.gd")
 
 const DAY_LENGTH := 120.0
 const MORNING := 0.25
@@ -92,6 +93,9 @@ var buff_swift := 0.0
 var buff_aegis_time := 0.0
 var aegis_hits := 0
 var _mp_acc := 0.0
+var meal := "" # the cooked meal currently making you "well fed"
+var meal_time := 0.0
+var _regen_acc := 0.0
 var quests: Dictionary = {}
 var flags: Dictionary = {}
 var next_spawn := "" # where the next scene should place the player
@@ -127,8 +131,18 @@ func _process(delta: float) -> void:
 		buff_aegis_time -= delta
 		if buff_aegis_time <= 0.0:
 			aegis_hits = 0
+	if meal_time > 0.0:
+		meal_time -= delta
+		var regen: float = meal_data().get("regen", 0.0)
+		if regen > 0.0 and hp < max_hp:
+			_regen_acc += delta
+			if _regen_acc >= regen:
+				_regen_acc = 0.0
+				heal(1)
+		if meal_time <= 0.0:
+			meal = ""
 	if mp < max_mp():
-		_mp_acc += delta
+		_mp_acc += delta * float(meal_data().get("mana", 1.0))
 		if _mp_acc >= 2.5:
 			_mp_acc = 0.0
 			mp += 1
@@ -179,10 +193,13 @@ func start_new_game() -> void:
 	buff_swift = 0.0
 	buff_aegis_time = 0.0
 	aegis_hits = 0
+	meal = ""
+	meal_time = 0.0
 	mp = max_mp()
 	quests = {}
 	flags = {}
 	next_spawn = ""
+	Audio.sync_gold()
 
 
 func sleep() -> void:
@@ -433,6 +450,7 @@ func load_game() -> bool:
 	mp = mini(int(d.get("mp", max_mp())), max_mp())
 	next_spawn = ""
 	cave_floor = 1
+	Audio.sync_gold()
 	return true
 
 
@@ -449,7 +467,7 @@ func heal(amount: int) -> void:
 
 
 func defense() -> int:
-	return Outfits.ARMOR[armor].def if armor != "" else 0
+	return (Outfits.ARMOR[armor].def if armor != "" else 0) + int(meal_data().get("def", 0))
 
 
 # Buys the hat if you don't own it (and equips it); otherwise toggles it on or off.
@@ -497,6 +515,8 @@ func add_xp(amount: int) -> int:
 		max_hp = mini(max_hp + 1, MAX_HP_CAP)
 		hp = max_hp
 		mp = max_mp()
+	if gained > 0:
+		Audio.sfx("levelup")
 	return gained
 
 
@@ -557,7 +577,7 @@ func weapon_data() -> Dictionary:
 
 # Damage of one sword swing: sharpening level plus the weapon's bonus, boosted by Rage.
 func attack_damage() -> int:
-	var base := damage + int(weapon_data().dmg)
+	var base := damage + int(weapon_data().dmg) + int(meal_data().get("dmg", 0))
 	return ceili(base * 1.5) if buff_rage > 0.0 else base
 
 
@@ -659,3 +679,36 @@ func withdraw(amount: int) -> int:
 	bank -= n
 	gold += n
 	return n
+
+
+# ---------- cooking ----------
+
+func meal_data() -> Dictionary:
+	return Cooking.MEALS[meal] if meal != "" and meal_time > 0.0 else {}
+
+
+func is_swift() -> bool:
+	return buff_swift > 0.0 or meal_data().get("swift", false)
+
+
+func start_meal(id: String) -> void:
+	meal = id
+	meal_time = float(Cooking.MEALS[id].dur)
+	_regen_acc = 0.0
+
+
+# How many fish you have of this rarity or better.
+func fish_at_least(rarity: String) -> int:
+	var n := 0
+	for r in range(Fish.RARITIES.find(rarity), Fish.RARITIES.size()):
+		n += int(fish_stock[Fish.RARITIES[r]])
+	return n
+
+
+# Removes the cheapest `count` fish of at least this rarity.
+func take_fish_at_least(rarity: String, count: int) -> void:
+	for r in range(Fish.RARITIES.find(rarity), Fish.RARITIES.size()):
+		var key: String = Fish.RARITIES[r]
+		while count > 0 and fish_stock[key] > 0:
+			fish_stock[key] -= 1
+			count -= 1

@@ -34,6 +34,10 @@ const WEAPONS := {
 		"name": "Battle Axe", "dmg": 4, "reach": 6.0, "cd": 1.7, "arc": 1.6, "price": 420, "effect": "",
 		"color": Color("c9d1d9"), "desc": "A huge, slow swing that hits hard and wide.",
 	},
+	"frostaxe": {
+		"name": "Titan's Frostaxe", "dmg": 6, "reach": 8.0, "cd": 1.4, "arc": 1.7, "price": 0, "effect": "freeze", "unique": true,
+		"color": Color("9fe8ff"), "desc": "Torn from the Frost Titan. A massive, freezing swing.",
+	},
 	"slimeblade": {
 		"name": "Slimeblade", "dmg": 3, "reach": 7.0, "cd": 0.9, "arc": 1.2, "price": 0, "effect": "drain", "unique": true,
 		"color": Color("5de08a"), "desc": "Won from the King Slime. Hits can heal you.",

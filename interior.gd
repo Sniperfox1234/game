@@ -93,6 +93,10 @@ func _ready() -> void:
 	hud.toast(room.title)
 
 
+func music_for() -> String:
+	return "mus_interior"
+
+
 func _area_process(_delta: float) -> void:
 	if not traveling and player.global_position.y > H * 16 - 10:
 		GameState.interior = ""
@@ -349,8 +353,9 @@ func _build_smithy_props() -> void:
 func _fill_smithy(m: PanelContainer) -> void:
 	m.add_label("Each weapon adds damage on top of your sharpening level (%d). Gold: %d" % [GameState.damage, GameState.gold], UiStyle.MUTED, 15)
 	var ids: Array = ["training"] + Weapons.SHOP_ORDER
-	if "slimeblade" in GameState.weapons:
-		ids.append("slimeblade")
+	for id in Weapons.WEAPONS:
+		if Weapons.WEAPONS[id].get("unique", false) and id in GameState.weapons:
+			ids.append(id)
 	for id in ids:
 		var w: Dictionary = Weapons.WEAPONS[id]
 		var owned: bool = id in GameState.weapons
@@ -511,14 +516,13 @@ func _chat(npc: Node2D) -> void:
 
 
 func _open_menu_at(title: String, fill: Callable, pos: Vector2) -> void:
-	menu.position = pos
+	menu_home = pos
 	open_menu(title, fill)
 
 
 # Closing any menu puts it back at its usual spot and hides the mirror's preview.
 func close_menu() -> void:
 	super()
-	menu.position = Vector2(316, 120)
 	outfit_backdrop.visible = false
 	outfit_preview.visible = false
 
@@ -550,6 +554,8 @@ func _build_bakery_props() -> void:
 		_glow(oven, Vector2(0, -10), Color(1.0, 0.55, 0.2), 1.3, 0.9)
 		world.add_child(oven)
 		add_blocker(oven, Rect2(-18, -22, 36, 22))
+	# Finn's kitchen: use the left-hand oven to cook your own meals.
+	add_interactable(world, 24.0, func(): open_cooking("Finn's Kitchen"), Rect2(24, 14, 40, 48))
 	for x in [96.0, 184.0]:
 		_sprite_at(PixelArt.bread_shelf(), Vector2(x, 2), 2)
 	_sprite_at(PixelArt.pastry_case(2), Vector2(COUNTER_POS.x + 4, COUNTER_POS.y - 14), 1)
@@ -607,7 +613,7 @@ func _eat_here(id: String) -> void:
 
 const GIVER_PLACES := {
 	"rosa": "Town Hall", "gus": "east road", "pip": "the plaza", "lila": "the plaza",
-	"hank": "west road", "odo": "the pond", "dusty": "the gallery", "merlo": "his study",
+	"hank": "west road", "odo": "the pond", "dusty": "the gallery", "merlo": "his study", "finn": "the bakery", "captain": "outside the Town Hall",
 }
 const HALL_DESK := Vector2(176, 82)
 const HALL_BANK := Vector2(326, 124)
@@ -852,13 +858,21 @@ func _cycle_look(part: String) -> void:
 
 # ---------- bestiary ----------
 
+const BESTIARY_PAGE := 6
+var bestiary_page := 0
+
+
 func _fill_bestiary(m: PanelContainer) -> void:
+	var kinds: Array = Enemy.KINDS.keys()
+	var pages := ceili(kinds.size() / float(BESTIARY_PAGE))
+	bestiary_page = clampi(bestiary_page, 0, pages - 1)
 	var known := 0
-	for kind in Enemy.KINDS:
+	for kind in kinds:
 		if int(GameState.kills.get(kind, 0)) > 0:
 			known += 1
-	m.add_label("Monsters you have defeated: %d of %d" % [known, Enemy.KINDS.size()], UiStyle.BORDER, 16)
-	for kind in Enemy.KINDS:
+	m.add_label("Monsters you have defeated: %d of %d      (page %d of %d)" % [known, kinds.size(), bestiary_page + 1, pages], UiStyle.BORDER, 16)
+	for k in range(bestiary_page * BESTIARY_PAGE, mini((bestiary_page + 1) * BESTIARY_PAGE, kinds.size())):
+		var kind: String = kinds[k]
 		var n := int(GameState.kills.get(kind, 0))
 		var d: Dictionary = Enemy.KINDS[kind]
 		var nm: String = Enemy.NAMES.get(kind, String(kind).capitalize())
@@ -867,7 +881,14 @@ func _fill_bestiary(m: PanelContainer) -> void:
 			m.add_label(Enemy.TIPS[kind], UiStyle.MUTED, 13)
 		else:
 			m.add_label("???   Defeat one to write it in the book.", UiStyle.MUTED, 15)
+	if pages > 1:
+		m.add_button("Next page" if bestiary_page < pages - 1 else "Back to page 1", _bestiary_turn)
 	m.add_button("Done", close_menu)
+
+
+func _bestiary_turn() -> void:
+	bestiary_page = (bestiary_page + 1) % ceili(Enemy.KINDS.size() / float(BESTIARY_PAGE))
+	refresh_menu()
 
 
 # ---------- hall of heroes ----------

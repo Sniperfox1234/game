@@ -5,9 +5,40 @@ extends RefCounted
 # "kill:raider" counts monsters that attack at night.
 # "event:<name>" quests finish when the game reports that event (a fish caught, a gallery score...).
 
-const ORDER := ["crops", "shrooms", "fish", "raiders", "slimes", "goblins", "boss", "picnic", "bats", "bigcatch", "gallery20", "firemagic"]
+const ORDER := ["crops", "shrooms", "fish", "raiders", "slimes", "goblins", "boss", "picnic", "bats", "bigcatch", "gallery20", "firemagic", "chef", "cold", "titan"]
 
 const DEFS := {
+	"cold": {
+		"title": "Cold Snap", "giver": "captain", "needs": "boss", "goal": 6, "unit": "ice slimes", "track": "kill:frostslime",
+		"reward": {"gold": 150, "potions": 2},
+		"offer": [
+			"Hero, bad news. With the King Slime gone, a frozen stairway opened beneath his chamber.",
+			"Ice slimes are creeping up from the Frostfang depths. Defeat 6 of them down there. They slow you down on touch, so keep moving!",
+		],
+		"remind": "{n} more ice slimes. Take the frozen stairs at the east end of the King's chamber.",
+		"thanks": ["The cold is receding already. Well done, hero."],
+	},
+	"titan": {
+		"title": "The Frost Titan", "giver": "gus", "needs": "cold", "goal": 1, "unit": "Frost Titan", "track": "kill:titan",
+		"reward": {"gold": 500, "max_hp": 4},
+		"offer": [
+			"The ice slimes answer to something far bigger. A Frost Titan sleeps in the deepest chamber of the Frostfang depths.",
+			"Slay it and Mossbrook is safe for good. I'll pay 500 gold and give you a heart charm. Beware its slam: stay out of the red circle!",
+		],
+		"remind": "The Frost Titan still sleeps in the lowest chamber of the frozen caves.",
+		"thanks": ["You... you slew the Titan?! Mossbrook owes you everything."],
+	},
+	"chef": {
+		"title": "Finn's Recipe", "giver": "finn", "needs": "", "goal": 1, "unit": "dish cooked", "track": "event:cook",
+		"reward": {"gold": 60, "potions": 1},
+		"offer": [
+			"Ah, a hero with an appetite for adventure! I'm Finn.",
+			"Cooked meals make you 'well fed' for ages, much longer than anything I sell. Cook any dish, at the campfire by your house or in my kitchen, and I'll reward you.",
+			"Fish, mushrooms, crops, meat and steak all go in the pot. A legendary fish makes the best feast!",
+		],
+		"remind": "Cook any dish at a campfire (by your farmhouse) or in my kitchen over there!",
+		"thanks": ["Delicious work! Welcome to the kitchen, chef."],
+	},
 	"picnic": {
 		"title": "Lila's Picnic", "giver": "lila", "needs": "", "goal": 2, "unit": "meat", "track": "item:meat",
 		"reward": {"gold": 40},
@@ -343,7 +374,10 @@ static func accept(id: String) -> String:
 	var start := 0
 	if id == "boss" and GameState.flags.get("boss_defeated", false):
 		start = 1
+	if id == "titan" and GameState.flags.get("titan_defeated", false):
+		start = 1
 	GameState.quests[id] = {"state": "active", "progress": start}
+	Audio.sfx("quest_accept")
 	return "New quest: %s" % DEFS[id].title
 
 
@@ -361,6 +395,7 @@ static func turn_in(id: String) -> String:
 	GameState.max_hp += r.get("max_hp", 0)
 	GameState.hp += r.get("max_hp", 0)
 	GameState.quests[id] = {"state": "done", "progress": d.goal}
+	Audio.sfx("quest_done")
 	return "Quest complete: %s" % d.title
 
 
@@ -385,6 +420,8 @@ static func _reward_text(r: Dictionary) -> String:
 static func on_kill(kind: String, raider: bool) -> String:
 	if kind == "king":
 		GameState.flags["boss_defeated"] = true
+	if kind == "titan":
+		GameState.flags["titan_defeated"] = true
 	var msg := ""
 	for id in ORDER:
 		var tr := _track(id)

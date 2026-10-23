@@ -13,6 +13,7 @@ const PickupScript := preload("res://pickup.gd")
 const AvatarScript := preload("res://avatar.gd")
 const UiStyle := preload("res://ui_style.gd")
 const Fish := preload("res://fish.gd")
+const Cooking := preload("res://cooking.gd")
 const InfoMenuScript := preload("res://info_menu.gd")
 const PetScript := preload("res://pet.gd")
 const PowerupScript := preload("res://powerup.gd")
@@ -52,10 +53,12 @@ var fish_timer := 0.0
 var fish_pond: Node2D
 
 var raid_timer := 6.0
+var _audio_check := 0.0
 var was_night := false
 
 var menu: PanelContainer
 var menu_fill := Callable()
+var menu_home := Vector2(316, 120) # where the menu opens; some rooms move it
 var shop_layer := CanvasLayer.new()
 var shop_panel := PanelContainer.new()
 var shop_info := Label.new()
@@ -127,6 +130,7 @@ func travel(scene: String, spawn: String) -> void:
 	if traveling:
 		return
 	traveling = true
+	Audio.sfx("door")
 	GameState.next_spawn = spawn
 	get_tree().change_scene_to_file(scene)
 
@@ -159,6 +163,7 @@ func add_small_tree(tile: Vector2i, choppable := true) -> void:
 
 func _chop(entry: Dictionary) -> void:
 	var tree: Node2D = entry.node
+	Audio.sfx("chop", 0.08)
 	entry.hp -= 1
 	var tw := create_tween()
 	tw.tween_property(tree, "rotation", 0.12, 0.05)
@@ -186,6 +191,7 @@ func add_ore(tile: Vector2i, sprite_idx: int) -> void:
 
 func _mine(entry: Dictionary) -> void:
 	var rock: Node2D = entry.node
+	Audio.sfx("mine", 0.1)
 	entry.hp -= 1
 	GameState.stone += 1
 	var tw := create_tween()
@@ -337,6 +343,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif got == -1:
 			hud.toast("Your mana is already full.")
 		else:
+			Audio.sfx("potion")
 			hud.toast("Glug! +%d mana" % got)
 	elif event.is_action_pressed("eat"):
 		var healed := GameState.eat()
@@ -345,9 +352,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif healed == -1:
 			hud.toast("You're already at full health.")
 		else:
+			Audio.sfx("eat")
 			hud.toast("Yum! +%d HP" % healed)
 	elif event.is_action_pressed("potion"):
 		if GameState.use_potion():
+			Audio.sfx("potion")
 			hud.toast("Glug! +5 HP")
 		elif GameState.potions <= 0:
 			hud.toast("You have no potions.")
@@ -357,7 +366,21 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # ---------- per-frame ----------
 
+# The track and background ambience for this place. Areas override these.
+func music_for() -> String:
+	return ""
+
+
+func ambience_for() -> String:
+	return ""
+
+
 func _process(delta: float) -> void:
+	_audio_check -= delta
+	if _audio_check <= 0.0:
+		_audio_check = 0.5
+		Audio.music(music_for())
+		Audio.ambience(ambience_for())
 	if use_daylight:
 		canvas_mod.color = daylight(GameState.time_of_day)
 	_fishing_tick(delta)
@@ -383,6 +406,7 @@ func _on_new_day(_day: int) -> void:
 
 func _start_fishing(pond: Node2D) -> void:
 	fish_pond = pond
+	Audio.sfx("cast")
 	fish_state = FishState.WAIT
 	fish_timer = randf_range(1.5, 3.5)
 	freeze(true)
@@ -400,6 +424,7 @@ func _fishing_tick(delta: float) -> void:
 		fish_state = FishState.BITE
 		fish_timer = BITE_WINDOW
 		fish_pond.set("bite", true)
+		Audio.sfx("bite")
 		hud.toast("A bite! Press Space!")
 	else:
 		_end_fishing("It got away...")
@@ -410,10 +435,12 @@ func _fish_press() -> void:
 		_end_fishing("Too early! You scared the fish.")
 		return
 	# The faster you react to the bite, the better the fish you can land.
+	Audio.sfx("reel")
 	var reaction := BITE_WINDOW - fish_timer
 	var speed_bonus := clampf(1.0 - reaction / 0.55, 0.0, 1.0)
 	var r := randf()
 	if r < 0.05:
+		Audio.sfx("splash")
 		_end_fishing("You reeled in an old boot. Nice.")
 	elif r < 0.10:
 		GameState.gold += 15
@@ -432,6 +459,8 @@ func _fish_press() -> void:
 		if quest_msg != "":
 			msg += "   |   " + quest_msg
 		fish_pond.call("splash", info.color)
+		Audio.sfx("splash")
+		Audio.sfx("catch_" + rarity)
 		_end_fishing(msg, info.color)
 
 
@@ -529,8 +558,10 @@ func _raid_tick(delta: float) -> void:
 	if night != was_night:
 		was_night = night
 		if night:
+			Audio.sfx("night")
 			hud.toast("Night falls... monsters are coming out!")
 		elif not get_tree().get_nodes_in_group("raiders").is_empty():
+			Audio.sfx("dawn")
 			hud.toast("Dawn breaks. The raiders fled.")
 	if not night:
 		for r in get_tree().get_nodes_in_group("raiders"):
@@ -567,10 +598,13 @@ func _free_spot_away(min_dist: float) -> Vector2:
 # Opens the shared menu. `fill` is called with the menu to (re)populate it whenever it refreshes.
 func open_menu(title: String, fill: Callable) -> void:
 	menu_fill = fill
+	Audio.sfx("open")
+	menu.position = menu_home
 	menu.setup(title)
 	menu.clear()
 	fill.call(menu)
 	menu.visible = true
+	_fit_menu.call_deferred()
 	freeze(true)
 	menu.focus_button(0)
 
@@ -580,11 +614,56 @@ func refresh_menu() -> void:
 	menu.clear()
 	menu_fill.call(menu)
 	menu.focus_button(idx)
+	_fit_menu.call_deferred()
+
+
+# Keeps a tall menu on screen by sliding it up if it would run off the bottom.
+func _fit_menu() -> void:
+	menu.reset_size()
+	var y := menu_home.y
+	if y + menu.size.y > 636.0:
+		y = maxf(8.0, 636.0 - menu.size.y)
+	menu.position = Vector2(menu_home.x, y)
 
 
 func close_menu() -> void:
+	Audio.sfx("close")
+	menu_home = Vector2(316, 120)
+	menu.position = menu_home
 	menu.visible = false
 	freeze(false)
+
+
+# ---------- cooking ----------
+
+func open_cooking(title := "Cooking Pot") -> void:
+	open_menu(title, _fill_cooking)
+
+
+func _fill_cooking(m: PanelContainer) -> void:
+	var gs := GameState
+	m.add_label("You have: %d fish (%d rare+)   %d mushrooms   %d crops   %d meat   %d steak" % [
+		gs.fish, gs.fish_at_least("rare"), gs.mushrooms, gs.crops, gs.meat, gs.steak], UiStyle.MUTED, 15)
+	if gs.meal_time > 0.0:
+		m.add_label("Well fed: %s, %ds left. Cooking something new replaces it." % [gs.meal_data().name, ceili(gs.meal_time)], UiStyle.BORDER, 15)
+	for recipe in Cooking.RECIPES:
+		var meal: Dictionary = Cooking.MEALS[recipe.meal]
+		m.add_button("%s  -  %s\n%s  (%ds)" % [meal.name, Cooking.needs_text(recipe), meal.desc, int(meal.dur)], _cook.bind(recipe), not Cooking.can_cook(recipe))
+	m.add_button("Done", close_menu)
+
+
+func _cook(recipe: Dictionary) -> void:
+	if not Cooking.cook(recipe):
+		return
+	Audio.sfx("sizzle")
+	Audio.sfx("cook_done")
+	var meal: Dictionary = Cooking.MEALS[recipe.meal]
+	var msg := "You cook %s and eat it! %s for %d seconds." % [meal.name, meal.desc, int(meal.dur)]
+	var q := Quests.event("cook")
+	if q != "":
+		msg += "   |   " + q
+	hud.toast(msg, UiStyle.BORDER)
+	refresh_menu()
 
 
 # ---------- pet ----------
@@ -609,6 +688,7 @@ func spawn_pet() -> void:
 # ---------- shop ----------
 
 func open_shop() -> void:
+	Audio.sfx("open")
 	freeze(true)
 	_refresh_shop()
 	shop_panel.visible = true
@@ -616,6 +696,7 @@ func open_shop() -> void:
 
 
 func close_shop() -> void:
+	Audio.sfx("close")
 	shop_panel.visible = false
 	freeze(false)
 
@@ -700,6 +781,7 @@ func _add_outfit_button(box: VBoxContainer, key: String, action: Callable) -> vo
 
 # Opens the hats-and-armor menu. The Armory calls this directly.
 func open_outfitter() -> void:
+	Audio.sfx("open")
 	outfit_standalone = true
 	freeze(true)
 	shop_panel.visible = false
@@ -752,6 +834,7 @@ func _refresh_outfits() -> void:
 		var a: Dictionary = Outfits.ARMOR[id]
 		var owned: bool = id in GameState.armors
 		var b: Button = outfit_buttons["armor:" + id]
+		b.visible = owned or not a.get("unique", false)
 		b.text = _outfit_label(a.name, a.price, "  (Def +%d)" % a.def, owned, GameState.armor == id)
 		b.disabled = not owned and GameState.gold < a.price
 	(outfit_buttons["back"] as Button).text = "Leave the counter"

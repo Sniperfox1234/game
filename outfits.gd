@@ -41,6 +41,17 @@ const HATS := {
 			"...OOOOOOOOOO...",
 		],
 	},
+	"frost_crown": {
+		"name": "Frost Titan's Crown", "price": 0, "unique": true, "y0": -3, "a": Color("bfe8ff"), "b": Color("ffffff"),
+		"rows": [
+			"....B..BB..B....",
+			"....O..OO..O....",
+			"....OAOAAOAO....",
+			"....OAABBAAO....",
+			"...OAAAAAAAAO...",
+			"...OBBBBBBBBO...",
+		],
+	},
 	"archer": {
 		"name": "Feathered Cap", "price": 0, "unique": true, "y0": -2, "a": Color("4f9d4f"), "b": Color("e84a5f"),
 		"rows": [
@@ -74,6 +85,10 @@ const HATS := {
 
 # `torso` and `legs` replace the shirt and pants colours; `trim` colours the shoulders and gloves.
 const ARMOR := {
+	"glacier": {
+		"name": "Glacier Plate", "price": 0, "def": 4, "unique": true,
+		"torso": Color("a8d8ff"), "legs": Color("6fa8d8"), "trim": Color("f2fbff"),
+	},
 	"leather": {
 		"name": "Leather Vest", "price": 100, "def": 1,
 		"torso": Color("8a5a2b"), "legs": Color("5a3b1e"), "trim": Color("5a3b1e"),

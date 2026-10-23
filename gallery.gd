@@ -116,6 +116,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _shoot() -> void:
+	Audio.sfx("shoot", 0.05)
 	arrows -= 1
 	var aim := _aim()
 	var best: Dictionary = {}
@@ -126,12 +127,18 @@ func _shoot() -> void:
 			best = t
 			best_d = d
 	if best.is_empty():
+		Audio.sfx("miss")
 		holes.append([aim, 3.0])
 		popups.append(["miss", aim + Vector2(0, -14), 0.7, Color("c9d1d9")])
 	else:
 		var ratio: float = best_d / best.r
 		var points := 10 if best.gold else (5 if ratio < 0.3 else (3 if ratio < 0.62 else 1))
 		score += points
+		Audio.sfx("target_hit")
+		if points == 5:
+			Audio.sfx("bullseye")
+		elif points == 10:
+			Audio.sfx("gold_target")
 		var label := "+%d" % points
 		if points == 5:
 			label = "BULLSEYE! +5"
@@ -145,6 +152,7 @@ func _shoot() -> void:
 
 
 func _finish() -> void:
+	Audio.sfx("quest_done")
 	active = false
 	visible = false
 	finished.emit(score)

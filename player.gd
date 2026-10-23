@@ -26,6 +26,7 @@ var dash_cooldown := 0.0
 var dash_dir := Vector2.ZERO
 var zaps: Array = [] # [from, to, time left] lightning bolts drawn after a Thunder Edge hit
 var _tint := Color.WHITE
+var slow_time := 0.0
 
 @onready var avatar: Node2D = $Avatar
 
@@ -44,6 +45,7 @@ func _physics_process(delta: float) -> void:
 
 	dash_cooldown = maxf(dash_cooldown - delta, 0.0)
 	if Input.is_action_just_pressed("dash") and dash_cooldown <= 0.0:
+		Audio.sfx("dash", 0.05)
 		dash_dir = direction if direction != Vector2.ZERO else facing
 		dash_left = DASH_TIME
 		dash_cooldown = DASH_COOLDOWN
@@ -54,13 +56,14 @@ func _physics_process(delta: float) -> void:
 		dash_left -= delta
 		velocity = dash_dir * DASH_SPEED
 	else:
-		var run := speed * (1.35 if GameState.buff_swift > 0.0 else 1.0)
+		var run := speed * (1.35 if GameState.is_swift() else 1.0) * (0.55 if slow_time > 0.0 else 1.0)
 		velocity = direction * run + knock
 	move_and_slide()
 	if direction.x != 0.0:
 		avatar.scale.x = signf(direction.x)
 	avatar.set_motion(direction != Vector2.ZERO, facing.y < 0.0)
 
+	slow_time = maxf(slow_time - delta, 0.0)
 	cooldown = maxf(cooldown - delta, 0.0)
 	spell_cooldown = maxf(spell_cooldown - delta, 0.0)
 	if attack_left > 0.0:
@@ -77,6 +80,8 @@ func _physics_process(delta: float) -> void:
 # Power-up looks: a red glow for Rage, a bubble for Aegis, and fading lightning bolts.
 func _update_look(delta: float) -> void:
 	var want := Color(1.0, 0.65, 0.6) if GameState.buff_rage > 0.0 else (Color(0.7, 1.0, 1.0) if GameState.buff_swift > 0.0 else Color.WHITE)
+	if slow_time > 0.0:
+		want = Color(0.65, 0.8, 1.3)
 	var alpha := 1.0
 	if invuln > 0.0:
 		alpha = 0.4 if int(invuln * 20.0) % 2 == 0 else 1.0
@@ -96,6 +101,7 @@ func try_attack() -> void:
 	if not is_physics_processing() or cooldown > 0.0:
 		return
 	var w := GameState.weapon_data()
+	Audio.sfx("swing", 0.08)
 	cooldown = ATTACK_COOLDOWN * float(w.cd)
 	attack_left = ATTACK_TIME
 	queue_redraw()
@@ -141,6 +147,7 @@ func cast_fireball() -> bool:
 	if not GameState.use_mp(GameState.FIREBALL_COST):
 		return false
 	spell_cooldown = SPELL_COOLDOWN
+	Audio.sfx("fireball", 0.05)
 	var angles: Array[float] = []
 	if GameState.spell < 2:
 		angles.append(0.0)
@@ -156,16 +163,25 @@ func cast_fireball() -> bool:
 	return true
 
 
+# Frost slows you to about half speed for a couple of seconds.
+func apply_slow(seconds: float) -> void:
+	if slow_time <= 0.0:
+		Audio.sfx("freeze")
+	slow_time = maxf(slow_time, seconds)
+
+
 func hurt(amount: int, from: Vector2) -> void:
 	if invuln > 0.0:
 		return
 	if GameState.aegis_hits > 0:
 		# The Aegis bubble soaks up the hit.
 		GameState.aegis_hits -= 1
+		Audio.sfx("ice_shatter")
 		invuln = 0.4
 		knock = (global_position - from).normalized() * 60.0
 		return
 	GameState.hp = maxi(GameState.hp - maxi(amount - GameState.defense(), 1), 0)
+	Audio.sfx("hurt", 0.05)
 	invuln = INVULN_TIME
 	knock = (global_position - from).normalized() * 140.0
 	if GameState.hp <= 0:

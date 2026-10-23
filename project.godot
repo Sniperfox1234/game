@@ -21,6 +21,7 @@ config/features=PackedStringArray("4.7")
 [autoload]
 
 GameState="*res://game_state.gd"
+Audio="*res://audio.gd"
 
 [rendering]
 

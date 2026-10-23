@@ -45,6 +45,7 @@ func _process(delta: float) -> void:
 	var player := get_tree().get_first_node_in_group("player") as Node2D
 	if player and player.global_position.distance_to(global_position + Vector2(0, -4)) < 12.0:
 		GameState.add_buff(kind)
+		Audio.sfx("powerup")
 		if area:
 			area.hud.toast(NAMES[kind], PixelArt.ORB_COLORS[kind].lightened(0.4))
 		queue_free()

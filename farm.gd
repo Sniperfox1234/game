@@ -4,6 +4,7 @@ extends "res://area.gd"
 const PlotScript := preload("res://plot.gd")
 const StallScript := preload("res://stall.gd")
 const Houses := preload("res://houses.gd")
+const PixelArt := preload("res://pixel_art.gd")
 
 # Kenney Tiny Town tile indices.
 const GRASS := [0, 0, 0, 0, 0, 0, 0, 1, 1, 2]
@@ -21,6 +22,7 @@ const REACH := 26.0
 var plots: Array[Node2D] = []
 var door_pos := Vector2.ZERO
 var leaving := false
+var campfire_glow: PointLight2D
 
 
 func _ready() -> void:
@@ -32,6 +34,7 @@ func _ready() -> void:
 	_build_decor()
 	_build_plots()
 	_build_stall()
+	_build_campfire()
 	add_pond(Rect2i(3, 14, 6, 4))
 	add_sign(Vector2(30 * 16 + 8, 13 * 16), [
 		"Mossbrook town: follow the road east.",
@@ -56,7 +59,17 @@ func _ready() -> void:
 		_screenshot_and_quit(args[0].trim_prefix("shot="))
 
 
+func music_for() -> String:
+	return "mus_night" if _is_night() else "mus_farm"
+
+
+func ambience_for() -> String:
+	return "amb_crickets" if _is_night() else "amb_birds"
+
+
 func _area_process(_delta: float) -> void:
+	if campfire_glow:
+		campfire_glow.energy = 0.25 + (0.6 if _is_night() else 0.0)
 	var near := _nearest_plot()
 	for plot in plots:
 		plot.call("set_highlight", plot == near)
@@ -127,6 +140,41 @@ func _build_stall() -> void:
 	world.add_child(stall)
 	add_blocker(stall, Rect2(-14, -12, 28, 12))
 	add_interactable(stall, 34.0, open_shop)
+
+
+# A campfire with a stew pot, west of the house. Cook meals here.
+func _build_campfire() -> void:
+	var fire := Node2D.new()
+	fire.position = Vector2(13 * 16, 9 * 16)
+	var s := Sprite2D.new()
+	s.texture = PixelArt.campfire_pot()
+	s.centered = false
+	s.position = Vector2(-18, -37)
+	fire.add_child(s)
+	var glow := PointLight2D.new()
+	glow.texture = PixelArt.light()
+	glow.color = Color(1.0, 0.6, 0.25)
+	glow.texture_scale = 1.2
+	glow.energy = 0.0
+	glow.position = Vector2(0, -12)
+	fire.add_child(glow)
+	campfire_glow = glow
+	var steam := CPUParticles2D.new()
+	steam.position = Vector2(0, -26)
+	steam.amount = 6
+	steam.lifetime = 1.6
+	steam.direction = Vector2(0, -1)
+	steam.spread = 15.0
+	steam.gravity = Vector2.ZERO
+	steam.initial_velocity_min = 6.0
+	steam.initial_velocity_max = 10.0
+	steam.scale_amount_min = 1.0
+	steam.scale_amount_max = 2.0
+	steam.color = Color(1, 1, 1, 0.5)
+	fire.add_child(steam)
+	world.add_child(fire)
+	add_blocker(fire, Rect2(-10, -8, 20, 8))
+	add_interactable(fire, 26.0, func(): open_cooking("Campfire Cooking Pot"))
 
 
 func _sleep() -> void:

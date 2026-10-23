@@ -643,15 +643,15 @@ static func rune_circle(rx: int, ry: int) -> Texture2D:
 
 # The King Slime's treasure chest: purple with gold bands and a slime-green lock. Origin is the
 # bottom-centre; 28x26. When open the lid is propped up and the inside shines.
-static func royal_chest(open: bool) -> Texture2D:
-	var key := "royal_%s" % open
+static func royal_chest(open: bool, frost := false) -> Texture2D:
+	var key := "royal_%s_%s" % [open, frost]
 	if _cache.has(key):
 		return _cache[key]
 	var img := canvas(28, 26)
-	var purple := Color("5b3fa0")
-	var purple_l := Color("7d5cc9")
-	var purple_d := Color("3d2870")
-	var green := Color("5de08a")
+	var purple := Color("3f78c0") if frost else Color("5b3fa0")
+	var purple_l := Color("7db8f0") if frost else Color("7d5cc9")
+	var purple_d := Color("264f8a") if frost else Color("3d2870")
+	var green := Color("c8f4ff") if frost else Color("5de08a")
 	ellipse(img, 14, 24, 12, 2, Color(0, 0, 0, 0.3))
 	# Body.
 	rect(img, 2, 12, 24, 12, OUT)
@@ -1294,3 +1294,86 @@ static func coin_pile() -> Texture2D:
 	put(img, 16, 8, GOLD)
 	_cache["coins"] = tex(img)
 	return _cache["coins"]
+
+
+# ---------- cooking ----------
+
+# A black pot of stew hanging over a campfire on a tripod. Origin is the bottom-centre; 36x38.
+static func campfire_pot() -> Texture2D:
+	if _cache.has("campfire"):
+		return _cache["campfire"]
+	var img := canvas(36, 38)
+	ellipse(img, 18, 36, 15, 2, Color(0, 0, 0, 0.3))
+	# Tripod legs.
+	for k in 6:
+		put(img, 7 + k, 6 + k * 3, OUT)
+		put(img, 8 + k, 6 + k * 3, WOOD_M)
+		put(img, 28 - k, 6 + k * 3, OUT)
+		put(img, 27 - k, 6 + k * 3, WOOD_M)
+	rect(img, 6, 3, 24, 3, OUT)
+	rect(img, 7, 4, 22, 1, WOOD_L)
+	# Logs and fire.
+	rect(img, 6, 31, 24, 4, OUT)
+	rect(img, 7, 32, 22, 2, WOOD_M)
+	rect(img, 9, 29, 18, 3, OUT)
+	rect(img, 10, 30, 16, 1, WOOD_D)
+	ellipse(img, 18, 27, 8, 5, OUT)
+	ellipse(img, 18, 27, 7, 4, FIRE)
+	ellipse(img, 18, 27, 4, 2.6, FIRE_L)
+	for x in [12, 16, 20, 24]:
+		rect(img, x, 22 + (x % 3), 2, 4, FIRE)
+	# The pot.
+	ellipse(img, 18, 17, 11, 9, OUT)
+	ellipse(img, 18, 17, 10, 8, IRON)
+	ellipse(img, 14, 15, 5, 4, IRON_L)
+	ellipse(img, 18, 10, 11, 4, OUT)
+	ellipse(img, 18, 10, 10, 3, IRON_L)
+	ellipse(img, 18, 10, 8.5, 2.4, Color("c0763a"))
+	ellipse(img, 18, 10, 5.5, 1.4, Color("e8a050"))
+	for q in [Vector2i(13, 10), Vector2i(18, 11), Vector2i(21, 9)]:
+		put(img, q.x, q.y, Color("fff0c8"))
+	_cache["campfire"] = tex(img)
+	return _cache["campfire"]
+
+
+# ---------- frozen caves ----------
+
+# Cracked blue ice with patches of snow. Origin is the top-left.
+static func ice_floor(tw: int, th: int) -> Texture2D:
+	var key := "ice_%d_%d" % [tw, th]
+	if _cache.has(key):
+		return _cache[key]
+	var w := tw * 16
+	var h := th * 16
+	var img := canvas(w, h)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 404
+	var tones := [Color("9fd4f0"), Color("8cc6e8"), Color("a8dcf5"), Color("86bde0")]
+	for ty in th:
+		for tx in tw:
+			var base: Color = tones[(tx * 7 + ty * 3 + rng.randi() % 2) % tones.size()]
+			rect(img, tx * 16, ty * 16, 16, 16, base)
+			rect(img, tx * 16, ty * 16, 16, 1, base.lightened(0.15))
+			rect(img, tx * 16, ty * 16, 1, 16, base.lightened(0.1))
+			for i in 5:
+				put(img, tx * 16 + rng.randi_range(1, 14), ty * 16 + rng.randi_range(1, 14), base.lightened(0.25) if rng.randf() < 0.6 else base.darkened(0.1))
+	# Cracks.
+	for c in int(w * h / 3200.0):
+		var x := rng.randi_range(8, w - 8)
+		var y := rng.randi_range(8, h - 8)
+		var dx := rng.randi_range(-1, 1)
+		for k in rng.randi_range(8, 20):
+			put(img, x, y, Color("5f95bd"))
+			put(img, x + 1, y, Color(1, 1, 1, 0.45))
+			x += dx if rng.randf() < 0.5 else 0
+			y += 1 if rng.randf() < 0.8 else 0
+			if rng.randf() < 0.2:
+				dx = rng.randi_range(-1, 1)
+	# Snow drifts.
+	for d in int(w * h / 2500.0):
+		var cx := rng.randf_range(0, w)
+		var cy := rng.randf_range(0, h)
+		ellipse(img, cx, cy, rng.randf_range(4, 9), rng.randf_range(2.5, 5), Color(0.96, 0.99, 1.0, 0.9))
+		ellipse(img, cx - 1, cy - 1, 2.5, 1.2, Color.WHITE)
+	_cache[key] = tex(img)
+	return _cache[key]

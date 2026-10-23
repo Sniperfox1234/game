@@ -11,6 +11,8 @@ var name_edit := LineEdit.new()
 
 
 func _ready() -> void:
+	Audio.music("mus_farm")
+	Audio.ambience("")
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
 	var bg := ColorRect.new()

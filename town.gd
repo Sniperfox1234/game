@@ -61,6 +61,14 @@ func _ready() -> void:
 		hud.toast("Welcome to Mossbrook! Talk to people with Space.")
 
 
+func music_for() -> String:
+	return "mus_night" if _is_night() else "mus_town"
+
+
+func ambience_for() -> String:
+	return "amb_crickets" if _is_night() else "amb_birds"
+
+
 func _area_process(_delta: float) -> void:
 	if traveling:
 		return

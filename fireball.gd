@@ -48,6 +48,7 @@ func _process(delta: float) -> void:
 
 
 func _explode(first: Node) -> void:
+	Audio.sfx("boom", 0.05)
 	_burst = 0.0
 	velocity = Vector2.ZERO
 	var hit := 0

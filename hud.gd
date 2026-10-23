@@ -33,6 +33,7 @@ var lines: Array = []
 var line_idx := 0
 var on_done := Callable()
 var reveal := 0.0
+var _blips := 0
 
 
 func _ready() -> void:
@@ -168,10 +169,12 @@ func say(speaker: String, new_lines: Array, done: Callable = Callable()) -> void
 	box.visible = true
 	speaker_tag.visible = true
 	speaker_tag.size = Vector2.ZERO
+	Audio.sfx("open")
 	dialogue_changed.emit(true)
 
 
 func _show_line() -> void:
+	_blips = 0
 	text_label.text = lines[line_idx]
 	text_label.visible_characters = 0
 	reveal = 0.0
@@ -202,6 +205,8 @@ func _process(delta: float) -> void:
 		active.append("SWIFT %ds" % ceili(GameState.buff_swift))
 	if GameState.aegis_hits > 0:
 		active.append("AEGIS x%d" % GameState.aegis_hits)
+	if GameState.meal_time > 0.0:
+		active.append("%s %ds" % [GameState.meal_data().name.to_upper(), ceili(GameState.meal_time)])
 	buffs.text = "   ".join(active)
 	stats.text = "%s  Lv %d (%d/%d XP) - Day %d  %02d:%02d\nGold: %d   HP: %d/%d   MP: %d/%d   Potions: %d\n%s" % [
 		GameState.player_name, GameState.level, GameState.xp, GameState.xp_needed(),
@@ -221,6 +226,8 @@ func _process(delta: float) -> void:
 			boss = e
 			break
 	boss_box.visible = boss != null
+	if boss != null:
+		boss_name.text = boss.display_name
 	toast_box.position.y = 520.0 if boss != null else 584.0
 	if boss != null:
 		boss_fill.size.x = maxf((BOSS_W - 6.0) * clampf(float(boss.hp) / boss.max_hp, 0.0, 1.0), 6.0)
@@ -233,6 +240,9 @@ func _process(delta: float) -> void:
 	if box.visible:
 		reveal += delta * CHARS_PER_SEC
 		text_label.visible_characters = int(reveal)
+		if int(reveal) / 2 > _blips and int(reveal) < text_label.text.length():
+			_blips = int(reveal) / 2
+			Audio.sfx("blip", 0.25)
 		_t += delta
 		var done := int(reveal) >= text_label.text.length()
 		arrow.visible = done
