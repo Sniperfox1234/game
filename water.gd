@@ -5,6 +5,9 @@ var size := Vector2(96, 64)
 var bobber := Vector2.INF
 var bite := false
 var _t := randf() * 10.0
+var _splash_time := 0.0
+var _splash_color := Color.WHITE
+var _splash_at := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -13,6 +16,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	_splash_time = maxf(_splash_time - delta, 0.0)
 	queue_redraw()
 
 
@@ -29,6 +33,13 @@ func cast(from_world: Vector2) -> void:
 func reset() -> void:
 	bobber = Vector2.INF
 	bite = false
+
+
+# A ring of droplets in the catch's rarity colour where the bobber was.
+func splash(color: Color) -> void:
+	_splash_time = 0.9
+	_splash_color = color
+	_splash_at = bobber if bobber != Vector2.INF else size / 2.0
 
 
 func _draw() -> void:
@@ -52,3 +63,10 @@ func _draw() -> void:
 			var font := ThemeDB.fallback_font
 			draw_string_outline(font, pos + Vector2(-3, -6), "!", HORIZONTAL_ALIGNMENT_CENTER, 6, 14, 4, Color.BLACK)
 			draw_string(font, pos + Vector2(-3, -6), "!", HORIZONTAL_ALIGNMENT_CENTER, 6, 14, Color("f2c14e"))
+	if _splash_time > 0.0:
+		var u := 1.0 - _splash_time / 0.9
+		for k in 14:
+			var a := TAU * k / 14.0
+			var r := 3.0 + u * 14.0
+			var p := _splash_at + Vector2(cos(a) * r, sin(a) * r * 0.6 - sin(u * PI) * 8.0)
+			draw_rect(Rect2(p.x - 1, p.y - 1, 2, 2), Color(_splash_color, 1.0 - u))

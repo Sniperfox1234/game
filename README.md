@@ -9,8 +9,9 @@ Open this folder in Godot 4 (Import > select `project.godot`) and press F5.
 ## Controls
 
 - Arrow keys: move
-- Space / Enter: talk, pick, plant, harvest, fish, trade, open chests; swings the sword if nothing is in reach
-- X / J: swing sword. Shift: dash (brief invulnerability). Q: drink a healing potion
+- Space / Enter: talk, pick, plant, harvest, fish, trade, open chests; swings your weapon if nothing is in reach
+- X / J: swing weapon. Shift: dash (brief invulnerability)
+- F: cast fireball (needs mana). M: drink a mana potion. Q: healing potion. E: eat meat or steak
 - Sleep at your house door to heal, skip the night and save
 
 ## The world
@@ -18,7 +19,12 @@ Open this folder in Godot 4 (Import > select `project.godot`) and press F5.
 - Farm: crops, a pond, a market stall, small trees to chop for wood, and the road east
 - Mossbrook town: fountain plaza (toss a coin for a wish), town hall, bakery, Bram's Builders, Mara's market,
   Wren's pet yard, a pond, a quest board, and a dozen wandering villagers
-- Shops you can walk into: Brann's Armory (hats and armor) and Gunnar's Butchery (meat and steak that heal you)
+- Shops you can walk into: Brann's Armory (hats and armor), Gunnar's Butchery (meat and steak that heal you),
+  Tilda's Smithy (swords and axes with fire, ice and lightning) and Merlo's Study (fireball spells and mana)
+- Fishing: five rarities (common to legendary) that sell for very different prices. React fast on the bite and buy
+  better rods from Old Odo, who also keeps a fish book with set rewards
+- Dusty's Shooting Gallery: a carnival mini-game with moving targets, bullseyes and golden targets
+- Around twenty villagers, including a healer, a postmistress with a daily gift, and a bard who powers you up
 - Old cave (east end of the road): floors 1 and 2 are full of regular monsters, chests and rocks to mine for stone;
   floor 3 is the boss chamber with the King Slime, who guards a legendary prize
 - Night raids: monsters attack the farm and town after dark
@@ -33,5 +39,6 @@ Open this folder in Godot 4 (Import > select `project.godot`) and press F5.
 - Shop: seeds, potions, sword upgrades, heart charms; sells crops, fish and mushrooms
 - Armory: hats for style and three armor sets that cut damage
 - Food: press E to eat meat (heals 3) or steak (heals 8)
-- Boss prize: the Slimeblade (+3 damage, longer reach) and the sparkling Slime King's Crown
+- Power-ups: orbs drop from monsters (Rage, Swift, Aegis, Heart) and appear mid-boss-fight
+- Boss prize: the Slimeblade (a legendary weapon that can heal you) and the sparkling Slime King's Crown
 - Character creator, day/night cycle, save/load

@@ -23,6 +23,9 @@ var arrow := Polygon2D.new()
 var _t := 0.0
 var toast_time := 0.0
 var hp_fill := Panel.new()
+var mp_fill := Panel.new()
+var inventory := Label.new()
+var buffs := Label.new()
 var box := PanelContainer.new()
 var speaker_label := Label.new()
 var text_label := Label.new()
@@ -46,6 +49,24 @@ func _ready() -> void:
 	hp_fill.position = Vector2(20, 112)
 	hp_fill.size = Vector2(BAR_W, 10)
 	add_child(hp_fill)
+
+	var mp_back := Panel.new()
+	mp_back.add_theme_stylebox_override("panel", _bar_style(Color("1d2540"), Color("7fa8e8"), 2))
+	mp_back.position = Vector2(16, 130)
+	mp_back.size = Vector2(BAR_W + 8, 14)
+	add_child(mp_back)
+	mp_fill.add_theme_stylebox_override("panel", _bar_style(Color("3f7fe0"), Color("9fc8ff"), 0))
+	mp_fill.position = Vector2(20, 134)
+	mp_fill.size = Vector2(BAR_W, 6)
+	add_child(mp_fill)
+
+	_style(inventory, 15)
+	inventory.position = Vector2(16, 152)
+	add_child(inventory)
+	_style(buffs, 17)
+	buffs.position = Vector2(16, 174)
+	buffs.add_theme_color_override("font_color", Color("ffd966"))
+	add_child(buffs)
 
 	_style(tracker, 18)
 	tracker.position = Vector2(760, 12)
@@ -130,7 +151,8 @@ func busy() -> bool:
 	return box.visible
 
 
-func toast(text: String) -> void:
+func toast(text: String, color: Color = UiStyle.CREAM) -> void:
+	toast_label.add_theme_color_override("font_color", color)
 	toast_label.text = text
 	toast_box.visible = text != ""
 	toast_box.size = Vector2.ZERO
@@ -157,22 +179,37 @@ func _show_line() -> void:
 
 func _process(delta: float) -> void:
 	var minutes := int(GameState.time_of_day * 24.0 * 60.0)
-	var extra := ""
+	var gear: Array[String] = ["Weapon: %s" % GameState.weapon_data().name]
 	if GameState.defense() > 0:
-		extra += "   Def: %d" % GameState.defense()
+		gear.append("Def %d" % GameState.defense())
 	if GameState.meat > 0:
-		extra += "   Meat: %d" % GameState.meat
+		gear.append("Meat %d" % GameState.meat)
 	if GameState.steak > 0:
-		extra += "   Steak: %d" % GameState.steak
+		gear.append("Steak %d" % GameState.steak)
+	if GameState.mana_potions > 0:
+		gear.append("Mana pots %d" % GameState.mana_potions)
+	if GameState.fish > 0:
+		gear.append("Fish %d" % GameState.fish)
 	if GameState.wood > 0:
-		extra += "   Wood: %d" % GameState.wood
+		gear.append("Wood %d" % GameState.wood)
 	if GameState.stone > 0:
-		extra += "   Stone: %d" % GameState.stone
-	stats.text = "%s  Lv %d (%d/%d XP) - Day %d  %02d:%02d\nGold: %d   HP: %d/%d   Potions: %d%s\n%s" % [
+		gear.append("Stone %d" % GameState.stone)
+	inventory.text = "   ".join(gear)
+	var active: Array[String] = []
+	if GameState.buff_rage > 0.0:
+		active.append("RAGE %ds" % ceili(GameState.buff_rage))
+	if GameState.buff_swift > 0.0:
+		active.append("SWIFT %ds" % ceili(GameState.buff_swift))
+	if GameState.aegis_hits > 0:
+		active.append("AEGIS x%d" % GameState.aegis_hits)
+	buffs.text = "   ".join(active)
+	stats.text = "%s  Lv %d (%d/%d XP) - Day %d  %02d:%02d\nGold: %d   HP: %d/%d   MP: %d/%d   Potions: %d\n%s" % [
 		GameState.player_name, GameState.level, GameState.xp, GameState.xp_needed(),
 		GameState.day, floori(minutes / 60.0), minutes % 60,
-		GameState.gold, GameState.hp, GameState.max_hp, GameState.potions, extra, hint,
+		GameState.gold, GameState.hp, GameState.max_hp, GameState.mp, GameState.max_mp(), GameState.potions, hint,
 	]
+	mp_fill.size.x = maxf(BAR_W * clampf(float(GameState.mp) / GameState.max_mp(), 0.0, 1.0), 6.0)
+	mp_fill.visible = GameState.mp > 0
 	var frac := clampf(float(GameState.hp) / GameState.max_hp, 0.0, 1.0)
 	hp_fill.size.x = maxf(BAR_W * frac, 10.0)
 	hp_fill.visible = GameState.hp > 0

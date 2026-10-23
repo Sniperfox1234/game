@@ -13,6 +13,7 @@ var w := 32.0
 var h := 16.0
 var gap := Vector2.ZERO # fence: x range of the opening along the top edge, in px from the left
 var tile := 120
+var light_color := Color(1.0, 0.62, 0.25)
 
 var _t := randf() * 10.0
 var _light: PointLight2D
@@ -45,7 +46,7 @@ func _ready() -> void:
 			_light = PointLight2D.new()
 			_light.texture = PixelArt.light()
 			_light.texture_scale = 1.1
-			_light.color = Color(1.0, 0.62, 0.25)
+			_light.color = light_color
 			_light.energy = 0.9
 			_light.position = Vector2(4, 5)
 			add_child(_light)

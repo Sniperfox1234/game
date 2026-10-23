@@ -8,6 +8,8 @@ const StallScript := preload("res://stall.gd")
 const FountainScript := preload("res://fountain.gd")
 const DecorScript := preload("res://decor.gd")
 const Houses := preload("res://houses.gd")
+const GalleryScript := preload("res://gallery.gd")
+const PixelArt := preload("res://pixel_art.gd")
 
 const GRASS := [0, 0, 0, 0, 0, 0, 0, 1, 1, 2]
 const PATH_TILE := 40
@@ -23,6 +25,7 @@ const HALL := [[48, 49, 49, 49, 49, 50], [60, 61, 61, 61, 61, 62], [76, 77, 77, 
 var cave_pos := Vector2.ZERO
 var doors := {} # shop id -> door position
 var npcs := {} # id -> npc node
+var gallery: CanvasLayer
 
 
 func _ready() -> void:
@@ -35,6 +38,7 @@ func _ready() -> void:
 	_build_plaza()
 	_build_scenery()
 	_build_pet_yard()
+	_build_gallery_booth()
 	_build_cave()
 	_build_npcs()
 	add_pond(Rect2i(40, 25, 9, 6))
@@ -48,6 +52,10 @@ func _ready() -> void:
 	spawn_player(spawn)
 	raids = true
 	finish()
+	gallery = GalleryScript.new()
+	add_child(gallery)
+	gallery.finished.connect(_on_gallery_finished)
+	minigame = gallery
 	if not GameState.flags.get("seen_town", false):
 		GameState.flags["seen_town"] = true
 		hud.toast("Welcome to Mossbrook! Talk to people with Space.")
@@ -91,18 +99,22 @@ func _build_ground() -> void:
 		for x in range(PLAZA.position.x, PLAZA.end.x):
 			set_tile(x, y, PLAZA_TILE)
 	# Paths from each front door down to the road.
-	for col in [6, 12, 40, 46]:
+	for col in [6, 12, 18, 36, 40, 46]:
 		_path(col, 13, col, 16)
 
 
 func _build_buildings() -> void:
 	build_house(Vector2i(4, 9), RED_HOUSE)     # bakery
 	doors["armory"] = build_house(Vector2i(10, 9), GREY_HOUSE)
+	doors["smithy"] = build_house(Vector2i(16, 9), GREY_HOUSE)
+	doors["study"] = build_house(Vector2i(34, 9), RED_HOUSE)
 	build_house(Vector2i(38, 9), GREY_HOUSE)   # builder's workshop
 	doors["butcher"] = build_house(Vector2i(44, 9), RED_HOUSE)
 	build_house(Vector2i(25, 3), HALL)         # town hall
 	_label("Bakery", Vector2(4 * 16 + 32, 9 * 16 + 10))
 	_label("Armory", Vector2(10 * 16 + 32, 9 * 16 + 10))
+	_label("Smithy", Vector2(16 * 16 + 32, 9 * 16 + 10))
+	_label("Merlo's Study", Vector2(34 * 16 + 32, 9 * 16 + 10))
 	_label("Butcher", Vector2(44 * 16 + 32, 9 * 16 + 10))
 	_label("Town Hall", Vector2(28 * 16, 3 * 16 + 4))
 	_label("Bram's Builders", Vector2(38 * 16 + 32, 9 * 16 + 10))
@@ -155,7 +167,7 @@ func _build_plaza() -> void:
 	mara.set_meta("no_blocker", true)
 	add_interactable(stall, 34.0, _open_market)
 
-	# Tilda's anvil.
+	# The smithy's outdoor anvil, where Jun practises.
 	var anvil := Node2D.new()
 	anvil.position = Vector2(32 * 16, 16 * 16)
 	anvil.add_child(Tiles.sprite(DUNGEON, 74, Vector2(-8, -15)))
@@ -178,7 +190,7 @@ func _build_scenery() -> void:
 		add_blocker(lamp, Rect2(-3, -6, 6, 6))
 	# Flower beds by the hall door and around the plaza.
 	for pos in [Vector2(22 * 16, 7 * 16 + 4), Vector2(31 * 16, 7 * 16 + 4), Vector2(22 * 16, 23 * 16), Vector2(32 * 16, 23 * 16),
-			Vector2(14 * 16, 11 * 16), Vector2(8 * 16, 12 * 16)]:
+			Vector2(13 * 16, 14 * 16), Vector2(7 * 16, 14 * 16)]:
 		_decor("flowers", pos, Vector2(48, 16))
 	# Quest board at the edge of the plaza.
 	add_sign(Vector2(20 * 16 + 8, 16 * 16 + 4), _board_lines)
@@ -234,23 +246,38 @@ func _build_cave() -> void:
 
 # ---------- people ----------
 
+const SPECIAL_NPCS := ["bram", "wren", "mara", "odo", "hazel", "penny", "lark", "dusty"]
+
+
 func _build_npcs() -> void:
 	_add_npc("rosa", "Mayor Rosa", 99, Vector2(27 * 16, 9 * 16 + 4))
 	_add_npc("captain", "Captain Vale", 97, Vector2(29 * 16, 9 * 16 + 4))
-	_add_npc("tilda", "Tilda the Smith", 98, Vector2(33 * 16, 16 * 16))
 	_add_npc("pip", "Pip", 85, Vector2(23 * 16, 19 * 16), 44.0)
 	_add_npc("gus", "Gus", 96, Vector2(50 * 16, 19 * 16))
 	_add_npc("durin", "Durin", 87, Vector2(48 * 16, 16 * 16), 14.0)
 	_add_npc("bram", "Bram the Builder", 86, Vector2(40 * 16 + 8, 14 * 16 + 4))
 	_add_npc("finn", "Baker Finn", 88, Vector2(6 * 16 + 8, 14 * 16 + 4), 12.0)
-	_add_npc("merlo", "Merlo the Wise", 84, Vector2(31 * 16, 20 * 16), 22.0)
 	_add_npc("odo", "Old Odo", 111, Vector2(40 * 16, 24 * 16 + 8))
 	_add_npc("wren", "Wren", 112, Vector2(10 * 16, 25 * 16 + 4), 18.0)
+	# Newer arrivals. Several are tinted so the same sprites look like different people.
+	_add_npc("jun", "Jun the Apprentice", 88, Vector2(33 * 16, 16 * 16), 0.0, Color(1.0, 0.8, 0.65))
+	_add_npc("moss", "Elder Moss", 111, Vector2(30 * 16 + 8, 20 * 16 + 4), 0.0, Color(0.8, 0.88, 1.15))
+	_add_npc("penny", "Postmistress Penny", 99, Vector2(24 * 16, 11 * 16 + 4), 0.0, Color(1.1, 0.85, 1.0))
+	_add_npc("hank", "Farmer Hank", 88, Vector2(14 * 16, 19 * 16), 18.0, Color(0.75, 1.0, 0.75))
+	_add_npc("lila", "Lila", 85, Vector2(27 * 16, 21 * 16), 34.0, Color(1.1, 0.8, 0.8))
+	_add_npc("brine", "Captain Brine", 98, Vector2(46 * 16, 24 * 16 + 4), 0.0, Color(0.7, 0.85, 1.15))
+	_add_npc("rue", "Gardener Rue", 112, Vector2(23 * 16 + 8, 22 * 16 + 8), 14.0, Color(0.85, 1.1, 0.85))
+	_add_npc("lark", "Lark the Bard", 84, Vector2(30 * 16, 15 * 16 + 4), 10.0, Color(1.15, 0.85, 1.1))
+	_add_npc("hazel", "Healer Hazel", 100, Vector2(31 * 16 + 8, 12 * 16), 0.0, Color(0.85, 1.1, 1.1))
 	add_interactable(npcs["bram"], TALK_REACH, _talk_bram)
 	add_interactable(npcs["wren"], TALK_REACH, _talk_wren)
+	add_interactable(npcs["odo"], TALK_REACH, _talk_odo)
+	add_interactable(npcs["hazel"], TALK_REACH, _talk_hazel)
+	add_interactable(npcs["penny"], TALK_REACH, _talk_penny)
+	add_interactable(npcs["lark"], TALK_REACH, _talk_lark)
 
 
-func _add_npc(id: String, display: String, tile: int, pos: Vector2, wander := 0.0) -> Node2D:
+func _add_npc(id: String, display: String, tile: int, pos: Vector2, wander := 0.0, tint := Color.WHITE) -> Node2D:
 	var npc := Node2D.new()
 	npc.set_script(NpcScript)
 	npc.npc_id = id
@@ -258,12 +285,13 @@ func _add_npc(id: String, display: String, tile: int, pos: Vector2, wander := 0.
 	npc.tile = tile
 	npc.position = pos
 	npc.wander_r = wander
+	npc.tint = tint
 	world.add_child(npc)
 	if wander == 0.0 and not npc.has_meta("no_blocker"):
 		add_blocker(npc, Rect2(-4, -6, 8, 6))
 	npcs[id] = npc
-	# Bram, Wren and Mara have their own menus; everyone else just chats.
-	if id not in ["bram", "wren", "mara"]:
+	# Villagers with their own menus are wired up separately; everyone else just chats.
+	if id not in SPECIAL_NPCS:
 		add_interactable(npc, TALK_REACH, func(): _talk(npc))
 	return npc
 
@@ -388,3 +416,210 @@ func _adopt(kind: String) -> void:
 	if kind != "":
 		hud.toast("%s joins your adventure!" % PetScript.KINDS[kind].name)
 	refresh_menu()
+
+
+# ---------- shared dialogue helper ----------
+
+# Says the NPC's quest dialogue (or an idle line), then runs `then`.
+func _say_then(npc: Node2D, then: Callable) -> void:
+	var t := Quests.talk(npc.npc_id)
+	var after: Callable = t.get("after", Callable())
+	hud.say(npc.display_name, t.lines, func():
+		if after.is_valid():
+			var msg: String = after.call()
+			if msg != "":
+				hud.toast(msg)
+		then.call())
+
+
+# ---------- Odo: tackle shop and fish book ----------
+
+func _talk_odo() -> void:
+	_say_then(npcs["odo"], func(): open_menu("Odo's Bait & Tackle", _fill_odo))
+
+
+func _fill_odo(m: PanelContainer) -> void:
+	var rod: Dictionary = Fish.RODS[GameState.rod]
+	m.add_label("Your rod: %s. Better rods find rarer fish, and so does a quick hand on the bite." % rod.name, UiStyle.CREAM, 16)
+	if GameState.rod < Fish.RODS.size() - 1:
+		var next: Dictionary = Fish.RODS[GameState.rod + 1]
+		m.add_button("Buy the %s  (%d gold)" % [next.name, next.price], _buy_rod, GameState.gold < next.price)
+	else:
+		m.add_label("You have the finest rod in Mossbrook!", UiStyle.BORDER, 16)
+	var species := Fish.all_species()
+	var found := 0
+	for s in species:
+		if GameState.fish_log.has(s):
+			found += 1
+	m.add_label("FISH BOOK   %d / %d species   (sell fish at any market stall)" % [found, species.size()], UiStyle.BORDER, 16)
+	for r in Fish.RARITIES:
+		var info: Dictionary = Fish.INFO[r]
+		var parts: Array[String] = []
+		for s in info.species:
+			parts.append("%s %s" % ["[x]" if GameState.fish_log.has(s) else "[ ]", s])
+		m.add_label("%s (%dg):  %s" % [info.name, info.price, "   ".join(parts)], info.color, 14)
+	for r in GameState.book_rewards_ready():
+		m.add_button("Claim the %s set reward: +%d gold" % [Fish.INFO[r].name, Fish.BOOK_REWARDS[r]], _claim_book.bind(r))
+	m.add_button("Done", close_menu)
+
+
+func _buy_rod() -> void:
+	var next: Dictionary = Fish.RODS[GameState.rod + 1]
+	if GameState.gold >= next.price:
+		GameState.gold -= next.price
+		GameState.rod += 1
+		hud.toast("You bought the %s!" % next.name)
+	refresh_menu()
+
+
+func _claim_book(rarity: String) -> void:
+	GameState.fish_claimed.append(rarity)
+	GameState.gold += Fish.BOOK_REWARDS[rarity]
+	hud.toast("Fish book reward: +%d gold!" % Fish.BOOK_REWARDS[rarity])
+	refresh_menu()
+
+
+# ---------- Hazel: the healer ----------
+
+func _talk_hazel() -> void:
+	_say_then(npcs["hazel"], func(): open_menu("Hazel's Clinic", _fill_hazel))
+
+
+func _fill_hazel(m: PanelContainer) -> void:
+	m.add_label("HP: %d/%d      MP: %d/%d      Gold: %d" % [GameState.hp, GameState.max_hp, GameState.mp, GameState.max_mp(), GameState.gold], UiStyle.MUTED, 16)
+	m.add_button("Heal me fully  (15 gold)", _hazel_heal, GameState.gold < 15 or GameState.hp >= GameState.max_hp)
+	m.add_button("Restore my mana  (10 gold)", _hazel_mana, GameState.gold < 10 or GameState.mp >= GameState.max_mp())
+	m.add_button("Done", close_menu)
+
+
+func _hazel_heal() -> void:
+	GameState.gold -= 15
+	GameState.hp = GameState.max_hp
+	hud.toast("Hazel patches you right up. Fully healed!")
+	refresh_menu()
+
+
+func _hazel_mana() -> void:
+	GameState.gold -= 10
+	GameState.mp = GameState.max_mp()
+	hud.toast("A warm tea and your mana is full again.")
+	refresh_menu()
+
+
+# ---------- Penny: a gift every day ----------
+
+func _talk_penny() -> void:
+	_say_then(npcs["penny"], _penny_gift)
+
+
+func _penny_gift() -> void:
+	if GameState.daily_gift_day == GameState.day:
+		hud.toast("Penny: That's your gift for today. Come back tomorrow!")
+		return
+	GameState.daily_gift_day = GameState.day
+	var r := randf()
+	var gs := GameState
+	if r < 0.35:
+		var g := randi_range(15, 45)
+		gs.gold += g
+		hud.toast("Penny's daily gift: %d gold!" % g, UiStyle.BORDER)
+	elif r < 0.55:
+		gs.potions = mini(gs.potions + 1, gs.POTION_CAP)
+		hud.toast("Penny's daily gift: a healing potion!", UiStyle.BORDER)
+	elif r < 0.70:
+		gs.meat = mini(gs.meat + 2, gs.FOOD_CAP)
+		hud.toast("Penny's daily gift: 2 roast meats!", UiStyle.BORDER)
+	elif r < 0.82:
+		gs.seeds += 4
+		hud.toast("Penny's daily gift: 4 crop seeds!", UiStyle.BORDER)
+	elif r < 0.92:
+		gs.mushrooms += 2
+		hud.toast("Penny's daily gift: 2 fresh mushrooms!", UiStyle.BORDER)
+	else:
+		gs.mana_potions = mini(gs.mana_potions + 1, gs.POTION_CAP)
+		hud.toast("Penny's daily gift: a mana potion!", UiStyle.BORDER)
+
+
+# ---------- Lark: a song that powers you up ----------
+
+func _talk_lark() -> void:
+	_say_then(npcs["lark"], _lark_song)
+
+
+func _lark_song() -> void:
+	if GameState.bard_day == GameState.day:
+		hud.toast("Lark: My voice needs a rest. Come back tomorrow for another song!")
+		return
+	GameState.bard_day = GameState.day
+	var kind := "rage" if randf() < 0.5 else "swift"
+	GameState.add_buff(kind)
+	hud.toast("Lark plays a rousing tune! " + PowerupScript.NAMES[kind], UiStyle.BORDER)
+
+
+# ---------- Dusty's shooting gallery ----------
+
+func _build_gallery_booth() -> void:
+	var booth := Node2D.new()
+	booth.set_script(StallScript)
+	booth.position = Vector2(33 * 16 + 8, 28 * 16)
+	world.add_child(booth)
+	add_blocker(booth, Rect2(-14, -12, 28, 12))
+	for dx in [-34.0, 34.0]:
+		var board := Node2D.new()
+		board.position = booth.position + Vector2(dx, 4)
+		var s := Sprite2D.new()
+		s.texture = PixelArt.target(dx > 0.0)
+		s.centered = false
+		s.position = Vector2(-17, -34)
+		board.add_child(s)
+		var post := ColorRect.new()
+		post.color = Color("5a3b1e")
+		post.position = Vector2(-1, -2)
+		post.size = Vector2(3, 8)
+		board.add_child(post)
+		world.add_child(board)
+	_label("Shooting Gallery", booth.position + Vector2(0, -38))
+	var dusty := _add_npc("dusty", "Dusty", 111, booth.position + Vector2(0, -5), 0.0, Color(1.15, 1.0, 0.75))
+	dusty.set_meta("no_blocker", true)
+	add_interactable(booth, 34.0, _talk_dusty)
+
+
+func _talk_dusty() -> void:
+	_say_then(npcs["dusty"], func(): open_menu("Dusty's Shooting Gallery", _fill_dusty))
+
+
+func _fill_dusty(m: PanelContainer) -> void:
+	m.add_label("12 arrows a round. Bullseye 5, inner ring 3, outer ring 1, golden targets 10!", UiStyle.CREAM, 16)
+	m.add_label("Prize: 3 gold per point.  20+ points: a bonus potion.  30+ points: the Feathered Cap!", UiStyle.MUTED, 15)
+	m.add_label("Your best score: %d" % GameState.gallery_best, UiStyle.BORDER, 16)
+	m.add_button("Play a round  (10 gold)", _start_gallery, GameState.gold < 10)
+	m.add_button("Done", close_menu)
+
+
+func _start_gallery() -> void:
+	GameState.gold -= 10
+	close_menu()
+	freeze(true)
+	gallery.begin()
+
+
+func _on_gallery_finished(score: int) -> void:
+	freeze(false)
+	var prize := score * 3
+	GameState.gold += prize
+	var lines: Array = ["You scored %d points!" % score, "Prize money: %d gold." % prize]
+	if score > GameState.gallery_best:
+		GameState.gallery_best = score
+		lines.append("That's a new personal best!")
+	if score >= 20:
+		GameState.potions = mini(GameState.potions + 1, GameState.POTION_CAP)
+		lines.append("Twenty or more! Have a healing potion on the house.")
+		var q := Quests.event("gallery")
+		if q != "":
+			lines.append(q)
+	if score >= 30 and not "archer" in GameState.hats:
+		GameState.hats.append("archer")
+		GameState.hat = "archer"
+		GameState.equipment_changed.emit()
+		lines.append("THIRTY! You've won the Feathered Cap. Wear it with pride!")
+	hud.say("Dusty", lines)

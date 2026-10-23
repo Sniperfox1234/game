@@ -41,6 +41,16 @@ const HATS := {
 			"...OOOOOOOOOO...",
 		],
 	},
+	"archer": {
+		"name": "Feathered Cap", "price": 0, "unique": true, "y0": -2, "a": Color("4f9d4f"), "b": Color("e84a5f"),
+		"rows": [
+			"..........OBO...",
+			"....OAAAAAABO...",
+			"...OAAAAAAAAO...",
+			"...OAAAAAAAAO...",
+			"..OOOOOOOOOOOO..",
+		],
+	},
 	"slime_crown": {
 		"name": "Slime King's Crown", "price": 0, "unique": true, "y0": -2, "a": Color("f2c14e"), "b": Color("5de08a"),
 		"rows": [

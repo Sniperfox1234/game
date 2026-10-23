@@ -16,7 +16,7 @@ const KINDS := {
 	"wizard": {"tile": 84, "hp": 3, "speed": 30.0, "radius": 7.0, "contact": 1, "aggro": 150.0, "ai": "shoot", "gold": Vector2i(5, 8), "xp": 8},
 	"ghost": {"tile": 121, "hp": 4, "speed": 24.0, "radius": 7.0, "contact": 2, "aggro": 170.0, "ai": "float", "gold": Vector2i(5, 8), "xp": 8},
 	"ogre": {"tile": 109, "hp": 9, "speed": 24.0, "radius": 9.0, "contact": 3, "aggro": 110.0, "ai": "walk", "gold": Vector2i(10, 15), "xp": 14},
-	"king": {"tile": 108, "hp": 26, "speed": 34.0, "radius": 14.0, "contact": 2, "aggro": 170.0, "ai": "king", "gold": Vector2i(60, 60), "xp": 80},
+	"king": {"tile": 108, "hp": 40, "speed": 34.0, "radius": 14.0, "contact": 2, "aggro": 170.0, "ai": "king", "gold": Vector2i(60, 60), "xp": 80},
 }
 
 var kind := "slime"
@@ -45,6 +45,9 @@ var state := 0 # charge: 0 walk, 1 wind-up, 2 dash. king: 0 chase, 1 telegraph.
 var state_time := 0.0
 var lock_dir := Vector2.ZERO
 var summoned := false
+var burn_time := 0.0
+var burn_tick := 0.0
+var slow_time := 0.0
 var t := randf() * 10.0
 
 var boss: bool:
@@ -94,6 +97,15 @@ func _ready() -> void:
 	sprite.position = Vector2(-8.0 * scale_f, base_y)
 	sprite.modulate = base_color
 	add_child(sprite)
+
+
+# Status effects from Flame Blade and Frost Brand weapons and from fireballs.
+func apply_status(kind: String) -> void:
+	if kind == "burn":
+		burn_time = 3.0
+		burn_tick = 0.6
+	elif kind == "freeze":
+		slow_time = 3.0
 
 
 func hit_center() -> Vector2:
@@ -154,8 +166,21 @@ func _physics_process(delta: float) -> void:
 				tint = Color(1.8, 1.8, 1.8)
 
 	knock = knock.move_toward(Vector2.ZERO, 400.0 * delta)
+	if slow_time > 0.0:
+		slow_time -= delta
+		move *= 0.4
+		tint = tint * Color(0.55, 0.85, 1.4)
 	velocity = move + knock
 	move_and_slide()
+	if burn_time > 0.0:
+		burn_time -= delta
+		burn_tick -= delta
+		tint = tint * Color(1.5, 0.85, 0.5)
+		if burn_tick <= 0.0:
+			burn_tick = 0.6
+			hurt(1, global_position)
+			if hp <= 0:
+				return
 
 	flash = maxf(flash - delta, 0.0)
 	sprite.modulate = Color(2.0, 2.0, 2.0) if flash > 0.0 else tint
@@ -214,6 +239,9 @@ func _king(delta: float, dir: Vector2, awake: bool) -> Vector2:
 		flash = 0.4
 		for i in 3:
 			summon.emit("slime", position + Vector2.from_angle(TAU * i / 3.0 + 0.5) * 30.0)
+		# The chamber answers with power-up orbs for the hero.
+		summon.emit("orb", position + Vector2(-48, 40))
+		summon.emit("orb", position + Vector2(48, 40))
 	if state == 1:
 		state_time -= delta
 		if state_time <= 0.0:

@@ -315,7 +315,7 @@ func _open_royal_chest() -> void:
 		return
 	hud.say("Royal Chest", [
 		"The lid creaks open and golden light pours out...",
-		"You found the SLIMEBLADE! A legendary sword that glows green. +3 damage and a longer reach!",
+		"You found the SLIMEBLADE! A legendary sword that glows green: +3 damage, longer reach, and its hits can heal you!",
 		"You found the SLIME KING'S CROWN! It sparkles with every step.",
 		"Plus 400 gold, 3 potions and a rush of experience!",
 	], _claim_prize)
@@ -324,7 +324,9 @@ func _open_royal_chest() -> void:
 func _claim_prize() -> void:
 	GameState.flags["royal_chest"] = true
 	GameState.flags["slimeblade"] = true
-	GameState.damage += 3
+	if not "slimeblade" in GameState.weapons:
+		GameState.weapons.append("slimeblade")
+	GameState.weapon = "slimeblade"
 	GameState.gold += 400
 	GameState.potions = mini(GameState.potions + 3, GameState.POTION_CAP)
 	if not "slime_crown" in GameState.hats:

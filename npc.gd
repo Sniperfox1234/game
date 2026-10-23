@@ -11,6 +11,7 @@ var npc_id := ""
 var display_name := ""
 var tile := 99
 var wander_r := 0.0
+var tint := Color.WHITE
 
 var _marker := ""
 var _t := 0.0
@@ -22,6 +23,7 @@ var _wait := 0.0
 
 func _ready() -> void:
 	_sprite = Tiles.sprite(DUNGEON, tile, Vector2(-8, -15))
+	_sprite.modulate = tint
 	add_child(_sprite)
 	_home = position
 	_target = position

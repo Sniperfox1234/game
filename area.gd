@@ -12,8 +12,10 @@ const WaterScript := preload("res://water.gd")
 const PickupScript := preload("res://pickup.gd")
 const AvatarScript := preload("res://avatar.gd")
 const UiStyle := preload("res://ui_style.gd")
+const Fish := preload("res://fish.gd")
 const InfoMenuScript := preload("res://info_menu.gd")
 const PetScript := preload("res://pet.gd")
+const PowerupScript := preload("res://powerup.gd")
 const Outfits := preload("res://outfits.gd")
 const TOWN := preload("res://assets/town/tiles.png")
 const DUNGEON := preload("res://assets/dungeon/tiles.png")
@@ -21,7 +23,7 @@ const FARM_SCENE := "res://farm.tscn"
 const TOWN_SCENE := "res://town.tscn"
 const CAVE_SCENE := "res://dungeon.tscn"
 const INTERIOR_SCENE := "res://interior.tscn"
-const HINT := "Space: act/attack   X: attack   Shift: dash   Q: potion   E: eat"
+const HINT := "Space: act/attack  Shift: dash  F: fireball  Q: potion  E: eat  M: mana"
 const BITE_WINDOW := 0.9
 
 enum FishState { NONE, WAIT, BITE }
@@ -42,6 +44,7 @@ var interactables: Array[Dictionary] = []
 var pickups: Array[Node2D] = []
 var choppables: Array[Dictionary] = []
 var pet_node: Node2D
+var minigame: Node # an overlay mini-game (the shooting gallery) that takes over the keys while active
 var pet_entry := {}
 
 var fish_state := FishState.NONE
@@ -295,6 +298,8 @@ func _interact() -> bool:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if minigame != null and minigame.get("active"):
+		return
 	if menu.visible:
 		if event.is_action_pressed("ui_cancel"):
 			close_menu()
@@ -320,6 +325,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			player.try_attack()
 	elif event.is_action_pressed("attack"):
 		player.try_attack()
+	elif event.is_action_pressed("fireball"):
+		if GameState.spell < 1:
+			hud.toast("You haven't learned a spell yet. Merlo's Study in town teaches fireball!")
+		elif not player.cast_fireball() and GameState.mp < GameState.FIREBALL_COST:
+			hud.toast("Not enough mana! It recharges slowly, or drink a mana potion with M.")
+	elif event.is_action_pressed("mana"):
+		var got := GameState.drink_mana()
+		if got == -2:
+			hud.toast("You have no mana potions. Merlo sells them!")
+		elif got == -1:
+			hud.toast("Your mana is already full.")
+		else:
+			hud.toast("Glug! +%d mana" % got)
 	elif event.is_action_pressed("eat"):
 		var healed := GameState.eat()
 		if healed == -2:
@@ -391,22 +409,37 @@ func _fish_press() -> void:
 	if fish_state == FishState.WAIT:
 		_end_fishing("Too early! You scared the fish.")
 		return
+	# The faster you react to the bite, the better the fish you can land.
+	var reaction := BITE_WINDOW - fish_timer
+	var speed_bonus := clampf(1.0 - reaction / 0.55, 0.0, 1.0)
 	var r := randf()
-	if r < 0.1:
+	if r < 0.05:
 		_end_fishing("You reeled in an old boot. Nice.")
-	elif r < 0.18:
+	elif r < 0.10:
 		GameState.gold += 15
 		_end_fishing("You found 15 gold in the mud!")
 	else:
-		GameState.fish += 1
-		_end_fishing("Caught a fish! (%d)" % GameState.fish)
+		var caught := Fish.roll(speed_bonus, GameState.rod)
+		var rarity: String = caught.rarity
+		var info: Dictionary = Fish.INFO[rarity]
+		var is_new := GameState.record_catch(caught.species, rarity)
+		var msg := "Caught a %s %s! Worth %d gold." % [info.name.to_upper() if rarity in ["epic", "legendary"] else info.name, caught.species, info.price]
+		if is_new:
+			msg += "  New for your fish book!"
+		var quest_msg := ""
+		if rarity == "epic" or rarity == "legendary":
+			quest_msg = Quests.event("epic")
+		if quest_msg != "":
+			msg += "   |   " + quest_msg
+		fish_pond.call("splash", info.color)
+		_end_fishing(msg, info.color)
 
 
-func _end_fishing(msg: String) -> void:
+func _end_fishing(msg: String, color: Color = UiStyle.CREAM) -> void:
 	fish_state = FishState.NONE
 	fish_pond.call("reset")
 	freeze(false)
-	hud.toast(msg)
+	hud.toast(msg, color)
 
 
 # ---------- monsters ----------
@@ -418,9 +451,29 @@ func spawn_enemy(kind: String, pos: Vector2, raider := false) -> Node:
 	e.raider = raider
 	e.position = pos
 	e.died.connect(_on_enemy_died)
-	e.summon.connect(func(k: String, pos: Vector2): spawn_enemy(k, pos))
+	e.summon.connect(_on_summon)
 	world.add_child(e)
 	return e
+
+
+func _on_summon(kind: String, pos: Vector2) -> void:
+	if kind == "orb":
+		spawn_powerup(pos)
+	else:
+		spawn_enemy(kind, pos)
+
+
+# Drops a power-up orb. With no kind given, one is picked at random.
+func spawn_powerup(pos: Vector2, kind := "") -> void:
+	if kind == "":
+		var r := randf()
+		kind = "rage" if r < 0.3 else ("swift" if r < 0.6 else ("aegis" if r < 0.85 else "heart"))
+	var p := Node2D.new()
+	p.set_script(PowerupScript)
+	p.kind = kind
+	p.area = self
+	p.position = pos
+	world.add_child(p)
 
 
 func _on_enemy_died(e: Node) -> void:
@@ -436,6 +489,8 @@ func _on_enemy_died(e: Node) -> void:
 	if not e.boss and randf() < 0.08:
 		GameState.potions += 1
 		msg += ", a potion!"
+	if not e.boss and randf() < 0.14:
+		spawn_powerup(e.position)
 	var quest_msg := Quests.on_kill(e.kind, e.raider)
 	if quest_msg != "":
 		msg += "   |   " + quest_msg

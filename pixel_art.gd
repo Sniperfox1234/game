@@ -689,3 +689,222 @@ static func royal_chest(open: bool) -> Texture2D:
 		put(img, 14, 14, OUT)
 	_cache[key] = tex(img)
 	return _cache[key]
+
+
+# ---------- power-up orbs ----------
+
+const ORB_COLORS := {
+	"rage": Color("e0463a"), "swift": Color("37c8d9"), "aegis": Color("e8b53a"), "heart": Color("ee6f9a"),
+}
+const ORB_ICONS := {
+	"rage": [".X.X.", ".XXX.", "XXXXX", "XXXXX", ".XXX."],
+	"swift": ["...X.", "..XX.", ".XXXX", "..XX.", "..X.."],
+	"aegis": ["XXXXX", "XXXXX", "XXXXX", ".XXX.", "..X.."],
+	"heart": [".X.X.", "XXXXX", "XXXXX", ".XXX.", "..X.."],
+}
+
+
+static func orb(kind: String) -> Texture2D:
+	var key := "orb_" + kind
+	if _cache.has(key):
+		return _cache[key]
+	var img := canvas(16, 16)
+	var base: Color = ORB_COLORS[kind]
+	ellipse(img, 8, 8, 7.5, 7.5, OUT)
+	ellipse(img, 8, 8, 6.5, 6.5, base.darkened(0.25))
+	ellipse(img, 7.5, 7.5, 5.5, 5.5, base)
+	ellipse(img, 6, 5.5, 2.2, 1.6, base.lightened(0.55))
+	var icon: Array = ORB_ICONS[kind]
+	for y in icon.size():
+		var row: String = icon[y]
+		for x in row.length():
+			if row[x] == "X":
+				put(img, 5 + x, 5 + y + 1, Color.WHITE if kind != "aegis" else Color("fff6d0"))
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+# ---------- wizard's study ----------
+
+# Wooden floorboards, `tw` x `th` tiles. Origin is the top-left.
+static func plank_floor(tw: int, th: int) -> Texture2D:
+	var key := "planks_%d_%d" % [tw, th]
+	if _cache.has(key):
+		return _cache[key]
+	var img := canvas(tw * 16, th * 16)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 31
+	var tones := [Color("7a5230"), Color("85582f"), Color("6e4a2a"), Color("8b6034")]
+	for row in th * 4:
+		var y := row * 4
+		var offset := (row * 7) % 16
+		var x := -offset
+		while x < tw * 16:
+			var len := 12 + rng.randi_range(0, 3) * 4
+			var tone: Color = tones[rng.randi() % tones.size()]
+			rect(img, x, y, len, 4, tone)
+			rect(img, x, y, len, 1, tone.lightened(0.12))
+			rect(img, x, y + 3, len, 1, tone.darkened(0.25))
+			rect(img, x + len - 1, y, 1, 4, tone.darkened(0.3))
+			put(img, x + 2, y + 1, tone.darkened(0.35))
+			put(img, x + len - 3, y + 2, tone.darkened(0.35))
+			x += len
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+# A tall bookshelf crammed with books and bottles. Origin is the top-left; 32x38.
+static func bookshelf(seed_value: int) -> Texture2D:
+	var key := "books_%d" % seed_value
+	if _cache.has(key):
+		return _cache[key]
+	var img := canvas(32, 38)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	rect(img, 0, 0, 32, 38, OUT)
+	rect(img, 1, 1, 30, 36, WOOD_D)
+	rect(img, 1, 1, 30, 2, WOOD_M)
+	var spines := [Color("b4423a"), Color("3a6fb4"), Color("4f9d4f"), Color("c7a23a"), Color("8a4fb4"), Color("d9d4c0")]
+	for shelf in 3:
+		var y0 := 3 + shelf * 11
+		rect(img, 2, y0 + 9, 28, 2, WOOD_M)
+		rect(img, 2, y0 + 10, 28, 1, WOOD_L)
+		var x := 3
+		while x < 28:
+			if rng.randf() < 0.14:
+				# A potion bottle.
+				var c: Color = spines[rng.randi() % spines.size()]
+				rect(img, x + 1, y0 + 4, 3, 5, OUT)
+				rect(img, x + 2, y0 + 5, 1, 3, c.lightened(0.2))
+				rect(img, x + 2, y0 + 3, 1, 2, FOAM)
+				x += 5
+			else:
+				var w := rng.randi_range(2, 4)
+				var h := rng.randi_range(6, 8)
+				var c: Color = spines[rng.randi() % spines.size()]
+				rect(img, x, y0 + 9 - h, w, h, OUT)
+				rect(img, x, y0 + 9 - h, w - 1, h, c)
+				rect(img, x, y0 + 10 - h, w - 1, 1, c.lightened(0.3))
+				if rng.randf() < 0.4:
+					rect(img, x, y0 + 9 - h / 2, w - 1, 1, GOLD)
+				x += w
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+# A bubbling green cauldron on a little fire. Origin is the bottom-centre; 28x28.
+static func cauldron() -> Texture2D:
+	if _cache.has("cauldron"):
+		return _cache["cauldron"]
+	var img := canvas(28, 28)
+	ellipse(img, 14, 26, 12, 2, Color(0, 0, 0, 0.3))
+	# Fire under the pot.
+	ellipse(img, 14, 23, 7, 3, OUT)
+	ellipse(img, 14, 23, 5, 2, FIRE)
+	ellipse(img, 14, 23, 2.5, 1.2, FIRE_L)
+	# Pot body and legs.
+	ellipse(img, 14, 14, 12, 10, OUT)
+	ellipse(img, 14, 14, 11, 9, IRON)
+	ellipse(img, 11, 12, 6, 5, IRON_L)
+	rect(img, 5, 20, 3, 4, OUT)
+	rect(img, 20, 20, 3, 4, OUT)
+	# Rim and the glowing potion.
+	ellipse(img, 14, 6, 11, 4.5, OUT)
+	ellipse(img, 14, 6, 10, 3.5, IRON_L)
+	ellipse(img, 14, 6, 8.5, 2.6, Color("2f9a4a"))
+	ellipse(img, 14, 6, 6, 1.6, Color("5de08a"))
+	for p in [Vector2i(10, 5), Vector2i(15, 6), Vector2i(18, 5), Vector2i(12, 7)]:
+		put(img, p.x, p.y, Color("c8ffd8"))
+	_cache["cauldron"] = tex(img)
+	return _cache["cauldron"]
+
+
+# A crystal ball on a carved pedestal. Origin is the bottom-centre; 20x30.
+static func crystal_ball() -> Texture2D:
+	if _cache.has("crystal"):
+		return _cache["crystal"]
+	var img := canvas(20, 30)
+	ellipse(img, 10, 28, 8, 2, Color(0, 0, 0, 0.3))
+	rect(img, 5, 24, 10, 5, OUT)
+	rect(img, 6, 25, 8, 3, STONE_M)
+	rect(img, 6, 25, 8, 1, STONE_L)
+	rect(img, 7, 17, 6, 8, OUT)
+	rect(img, 8, 18, 4, 6, STONE_M)
+	rect(img, 8, 18, 1, 6, STONE_L)
+	ellipse(img, 10, 10, 9, 9, OUT)
+	ellipse(img, 10, 10, 8, 8, Color("5b6fd0"))
+	ellipse(img, 10, 11, 6, 6, Color("8a6bf0"))
+	ellipse(img, 7, 7, 3, 2.5, Color("d6dcff"))
+	put(img, 13, 13, FOAM)
+	put(img, 12, 14, FOAM)
+	_cache["crystal"] = tex(img)
+	return _cache["crystal"]
+
+
+# ---------- smithy ----------
+
+# A round grindstone on a wooden frame. Origin is the bottom-centre; 24x22.
+static func grindstone() -> Texture2D:
+	if _cache.has("grindstone"):
+		return _cache["grindstone"]
+	var img := canvas(24, 22)
+	ellipse(img, 12, 20, 10, 2, Color(0, 0, 0, 0.3))
+	rect(img, 3, 8, 3, 13, OUT)
+	rect(img, 4, 9, 1, 11, WOOD_M)
+	rect(img, 18, 8, 3, 13, OUT)
+	rect(img, 19, 9, 1, 11, WOOD_M)
+	ellipse(img, 12, 10, 9, 9, OUT)
+	ellipse(img, 12, 10, 8, 8, STONE_M)
+	ellipse(img, 10, 8, 5, 5, STONE_L)
+	ellipse(img, 12, 10, 2, 2, OUT)
+	for p in [Vector2i(16, 6), Vector2i(17, 12), Vector2i(8, 15), Vector2i(7, 9)]:
+		put(img, p.x, p.y, STONE_D)
+	_cache["grindstone"] = tex(img)
+	return _cache["grindstone"]
+
+
+# ---------- shooting gallery ----------
+
+# A bullseye target: red and white rings around a gold centre. The golden version is worth more.
+static func target(golden: bool) -> Texture2D:
+	var key := "target_%s" % golden
+	if _cache.has(key):
+		return _cache[key]
+	var img := canvas(34, 34)
+	var rings: Array = [
+		[1.0, OUT],
+		[0.94, Color("f2c14e") if golden else Color("d63c3c")],
+		[0.78, Color("fff6d0") if golden else Color("f5f5f5")],
+		[0.62, Color("e8a21a") if golden else Color("d63c3c")],
+		[0.46, Color("fff6d0") if golden else Color("f5f5f5")],
+		[0.30, OUT],
+		[0.26, Color("ffdd55") if golden else Color("f2c14e")],
+	]
+	for r in rings:
+		ellipse(img, 17, 17, 17.0 * r[0], 17.0 * r[0], r[1])
+	if golden:
+		for p in [Vector2i(9, 8), Vector2i(24, 10), Vector2i(11, 24), Vector2i(23, 22)]:
+			put(img, p.x, p.y, Color.WHITE)
+			put(img, p.x + 1, p.y, Color(1, 1, 1, 0.6))
+			put(img, p.x, p.y + 1, Color(1, 1, 1, 0.6))
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+static func crosshair() -> Texture2D:
+	if _cache.has("crosshair"):
+		return _cache["crosshair"]
+	var img := canvas(17, 17)
+	for pass_index in 2:
+		var col := OUT if pass_index == 0 else Color.WHITE
+		var grow := 1 if pass_index == 0 else 0
+		for a in 24:
+			var ang := TAU * a / 24.0
+			rect(img, roundi(8 + cos(ang) * 6) - grow, roundi(8 + sin(ang) * 6) - grow, 1 + grow * 2, 1 + grow * 2, col)
+		rect(img, 8 - grow, 0, 1 + grow * 2, 4, col)
+		rect(img, 8 - grow, 13, 1 + grow * 2, 4, col)
+		rect(img, 0, 8 - grow, 4, 1 + grow * 2, col)
+		rect(img, 13, 8 - grow, 4, 1 + grow * 2, col)
+	put(img, 8, 8, Color("e84a5f"))
+	_cache["crosshair"] = tex(img)
+	return _cache["crosshair"]
