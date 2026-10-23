@@ -18,6 +18,11 @@ const MAX_HP_CAP := 40
 const PET_LEVEL := 3
 const PET_PRICE := 100
 const POTION_CAP := 9
+const MEAT_PRICE := 8
+const MEAT_HEAL := 3
+const STEAK_PRICE := 22
+const STEAK_HEAL := 8
+const FOOD_CAP := 9
 
 var player_name := "Hero"
 var skin_color := Color("f1c27d")
@@ -33,6 +38,9 @@ var fish := 0
 var mushrooms := 0
 var potions := 0
 var cave_floor := 1
+var meat := 0
+var steak := 0
+var interior := "" # which shop interior to load next (not saved)
 var level := 1
 var xp := 0
 var wood := 0
@@ -57,6 +65,7 @@ func _ready() -> void:
 	_add_keys("dash", [KEY_SHIFT])
 	_add_keys("attack", [KEY_X, KEY_J])
 	_add_keys("potion", [KEY_Q])
+	_add_keys("eat", [KEY_E])
 
 
 func _add_keys(action: String, keys: Array) -> void:
@@ -86,6 +95,8 @@ func start_new_game() -> void:
 	mushrooms = 0
 	potions = 0
 	cave_floor = 1
+	meat = 0
+	steak = 0
 	level = 1
 	xp = 0
 	wood = 0
@@ -194,6 +205,8 @@ func save_game() -> void:
 		"mushrooms": mushrooms,
 		"potions": potions,
 		"max_hp": max_hp,
+		"meat": meat,
+		"steak": steak,
 		"level": level,
 		"xp": xp,
 		"wood": wood,
@@ -236,6 +249,8 @@ func load_game() -> bool:
 	mushrooms = int(d.get("mushrooms", 0))
 	potions = int(d.get("potions", 0))
 	max_hp = int(d.get("max_hp", 10))
+	meat = int(d.get("meat", 0))
+	steak = int(d.get("steak", 0))
 	level = int(d.get("level", 1))
 	xp = int(d.get("xp", 0))
 	wood = int(d.get("wood", 0))
@@ -332,3 +347,38 @@ func pet_damage() -> int:
 # Potions found in the pantry each morning, depending on how grand the house is.
 func house_potions() -> int:
 	return maxi(house_tier - 1, 0)
+
+
+func buy_meat() -> bool:
+	if gold < MEAT_PRICE or meat >= FOOD_CAP:
+		return false
+	gold -= MEAT_PRICE
+	meat += 1
+	return true
+
+
+func buy_steak() -> bool:
+	if gold < STEAK_PRICE or steak >= FOOD_CAP:
+		return false
+	gold -= STEAK_PRICE
+	steak += 1
+	return true
+
+
+# Eats whichever food wastes the least healing. Returns HP restored, -1 if already at full
+# health, or -2 if you have nothing to eat.
+func eat() -> int:
+	if meat <= 0 and steak <= 0:
+		return -2
+	if hp >= max_hp:
+		return -1
+	var missing := max_hp - hp
+	var use_steak := steak > 0 and (meat <= 0 or missing >= STEAK_HEAL)
+	var amount := STEAK_HEAL if use_steak else MEAT_HEAL
+	if use_steak:
+		steak -= 1
+	else:
+		meat -= 1
+	var before := hp
+	heal(amount)
+	return hp - before

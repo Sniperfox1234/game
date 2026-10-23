@@ -21,6 +21,7 @@ const GREY_HOUSE := [[48, 49, 49, 50], [60, 61, 61, 62], [76, 77, 77, 79], [88, 
 const HALL := [[48, 49, 49, 49, 49, 50], [60, 61, 61, 61, 61, 62], [76, 77, 77, 77, 77, 79], [88, 88, 90, 91, 88, 88]]
 
 var cave_pos := Vector2.ZERO
+var doors := {} # shop id -> door position
 var npcs := {} # id -> npc node
 
 
@@ -41,6 +42,8 @@ func _ready() -> void:
 	var spawn := Vector2(28, 17 * 16 + 8)
 	if GameState.next_spawn == "cave":
 		spawn = cave_pos + Vector2(0, 14)
+	elif GameState.next_spawn in doors:
+		spawn = doors[GameState.next_spawn] + Vector2(0, 22)
 	GameState.next_spawn = ""
 	spawn_player(spawn)
 	raids = true
@@ -56,7 +59,14 @@ func _area_process(_delta: float) -> void:
 	var p := player.global_position
 	if p.x < 10.0:
 		travel(FARM_SCENE, "east")
-	elif absf(p.x - cave_pos.x) < 9.0 and p.y < cave_pos.y - 6.0 and p.y > cave_pos.y - 24.0:
+	else:
+		for id in doors:
+			var d: Vector2 = doors[id]
+			if absf(p.x - d.x) < 9.0 and p.y < d.y + 8.0 and p.y > d.y - 6.0:
+				GameState.interior = id
+				travel(INTERIOR_SCENE, "")
+				return
+	if absf(p.x - cave_pos.x) < 9.0 and p.y < cave_pos.y - 6.0 and p.y > cave_pos.y - 24.0:
 		GameState.cave_floor = 1
 		travel(CAVE_SCENE, "town")
 
@@ -87,11 +97,13 @@ func _build_ground() -> void:
 
 func _build_buildings() -> void:
 	build_house(Vector2i(4, 9), RED_HOUSE)     # bakery
-	build_house(Vector2i(10, 9), GREY_HOUSE)   # cottage
+	doors["armory"] = build_house(Vector2i(10, 9), GREY_HOUSE)
 	build_house(Vector2i(38, 9), GREY_HOUSE)   # builder's workshop
-	build_house(Vector2i(44, 9), RED_HOUSE)    # cottage
+	doors["butcher"] = build_house(Vector2i(44, 9), RED_HOUSE)
 	build_house(Vector2i(25, 3), HALL)         # town hall
 	_label("Bakery", Vector2(4 * 16 + 32, 9 * 16 + 10))
+	_label("Armory", Vector2(10 * 16 + 32, 9 * 16 + 10))
+	_label("Butcher", Vector2(44 * 16 + 32, 9 * 16 + 10))
 	_label("Town Hall", Vector2(28 * 16, 3 * 16 + 4))
 	_label("Bram's Builders", Vector2(38 * 16 + 32, 9 * 16 + 10))
 	_label("Pet Yard", Vector2(10 * 16, 23 * 16 + 2))

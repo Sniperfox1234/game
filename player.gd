@@ -73,9 +73,10 @@ func try_attack() -> void:
 	cooldown = ATTACK_COOLDOWN
 	attack_left = ATTACK_TIME
 	queue_redraw()
-	var center := global_position + Vector2(0, -6) + facing * REACH * 0.7
+	var reach := _reach()
+	var center := global_position + Vector2(0, -6) + facing * reach * 0.7
 	for e in get_tree().get_nodes_in_group("enemies"):
-		if e.call("hit_center").distance_to(center) < REACH + float(e.get("radius")):
+		if e.call("hit_center").distance_to(center) < reach + float(e.get("radius")):
 			e.call("hurt", GameState.damage, global_position)
 
 
@@ -89,7 +90,16 @@ func hurt(amount: int, from: Vector2) -> void:
 		died.emit()
 
 
+# The legendary Slimeblade, won from the King Slime, reaches further.
+func _reach() -> float:
+	return REACH + (7.0 if GameState.flags.get("slimeblade", false) else 0.0)
+
+
 func _draw() -> void:
 	if attack_left > 0.0:
 		var a := facing.angle()
-		draw_arc(Vector2(0, -6), 15.0, a - 0.9, a + 0.9, 10, Color(1, 1, 1, 0.9), 2.0)
+		if GameState.flags.get("slimeblade", false):
+			draw_arc(Vector2(0, -6), _reach() - 5.0, a - 1.1, a + 1.1, 14, Color("5de08a", 0.9), 4.0)
+			draw_arc(Vector2(0, -6), _reach() - 5.0, a - 1.1, a + 1.1, 14, Color("d8ffe8"), 2.0)
+		else:
+			draw_arc(Vector2(0, -6), 15.0, a - 0.9, a + 0.9, 10, Color(1, 1, 1, 0.9), 2.0)

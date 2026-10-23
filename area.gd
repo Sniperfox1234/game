@@ -20,7 +20,8 @@ const DUNGEON := preload("res://assets/dungeon/tiles.png")
 const FARM_SCENE := "res://farm.tscn"
 const TOWN_SCENE := "res://town.tscn"
 const CAVE_SCENE := "res://dungeon.tscn"
-const HINT := "Space: act/attack   X: attack   Shift: dash   Q: potion"
+const INTERIOR_SCENE := "res://interior.tscn"
+const HINT := "Space: act/attack   X: attack   Shift: dash   Q: potion   E: eat"
 const BITE_WINDOW := 0.9
 
 enum FishState { NONE, WAIT, BITE }
@@ -60,6 +61,7 @@ var outfit_panel := PanelContainer.new()
 var outfit_info := Label.new()
 var outfit_buttons := {} # "hat:crown" / "armor:plate" / "back" -> Button
 var outfit_preview := Node2D.new()
+var outfit_standalone := false
 var outfit_backdrop := ColorRect.new()
 
 
@@ -318,6 +320,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			player.try_attack()
 	elif event.is_action_pressed("attack"):
 		player.try_attack()
+	elif event.is_action_pressed("eat"):
+		var healed := GameState.eat()
+		if healed == -2:
+			hud.toast("You have nothing to eat. The butcher sells meat!")
+		elif healed == -1:
+			hud.toast("You're already at full health.")
+		else:
+			hud.toast("Yum! +%d HP" % healed)
 	elif event.is_action_pressed("potion"):
 		if GameState.use_potion():
 			hud.toast("Glug! +5 HP")
@@ -408,6 +418,7 @@ func spawn_enemy(kind: String, pos: Vector2, raider := false) -> Node:
 	e.raider = raider
 	e.position = pos
 	e.died.connect(_on_enemy_died)
+	e.summon.connect(func(k: String, pos: Vector2): spawn_enemy(k, pos))
 	world.add_child(e)
 	return e
 
@@ -434,6 +445,12 @@ func _on_enemy_died(e: Node) -> void:
 		if GameState.level == GameState.PET_LEVEL:
 			msg += " Wren in town can give you a pet!"
 	hud.toast(msg)
+	_after_enemy_died(e)
+
+
+# Hook for areas that react to kills (the boss chamber spawns the prize chest here).
+func _after_enemy_died(_e: Node) -> void:
+	pass
 
 
 func _on_player_died() -> void:
@@ -560,7 +577,7 @@ func _build_shop_panel() -> void:
 	box.add_child(shop_info)
 	for entry in [
 		["seed", _shop_buy_seed], ["potion", _shop_buy_potion], ["sword", _shop_upgrade_sword],
-		["charm", _shop_buy_charm], ["sell", _shop_sell], ["outfits", _open_outfitter], ["leave", close_shop],
+		["charm", _shop_buy_charm], ["sell", _shop_sell], ["leave", close_shop],
 	]:
 		var b := Button.new()
 		b.pressed.connect(entry[1])
@@ -579,7 +596,7 @@ func _build_outfit_panel() -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
 	var title := Label.new()
-	title.text = "Mara's Outfitter  (Esc to go back)"
+	title.text = "Brann's Armory  (Esc to leave the counter)"
 	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", UiStyle.BORDER)
 	box.add_child(title)
@@ -591,6 +608,7 @@ func _build_outfit_panel() -> void:
 	box.add_child(hats_label)
 	for id in Outfits.HATS:
 		_add_outfit_button(box, "hat:" + id, _on_outfit_pressed.bind("hat", id))
+	hats_label.text = "Hats (just for looks)"
 	var armor_label := Label.new()
 	armor_label.text = "Armor (takes damage off every hit, min 1)"
 	armor_label.modulate = Color("f2c14e")
@@ -624,7 +642,10 @@ func _add_outfit_button(box: VBoxContainer, key: String, action: Callable) -> vo
 	outfit_buttons[key] = b
 
 
-func _open_outfitter() -> void:
+# Opens the hats-and-armor menu. The Armory calls this directly.
+func open_outfitter() -> void:
+	outfit_standalone = true
+	freeze(true)
 	shop_panel.visible = false
 	outfit_panel.visible = true
 	outfit_backdrop.visible = true
@@ -638,6 +659,10 @@ func _close_outfitter() -> void:
 	outfit_panel.visible = false
 	outfit_backdrop.visible = false
 	outfit_preview.visible = false
+	if outfit_standalone:
+		outfit_standalone = false
+		freeze(false)
+		return
 	shop_panel.visible = true
 	_refresh_shop()
 	(shop_buttons["seed"] as Button).grab_focus()
@@ -664,6 +689,7 @@ func _refresh_outfits() -> void:
 		var h: Dictionary = Outfits.HATS[id]
 		var owned: bool = id in GameState.hats
 		var b: Button = outfit_buttons["hat:" + id]
+		b.visible = owned or not h.get("unique", false)
 		b.text = _outfit_label(h.name, h.price, "", owned, GameState.hat == id)
 		b.disabled = not owned and GameState.gold < h.price
 	for id in Outfits.ARMOR:
@@ -672,7 +698,7 @@ func _refresh_outfits() -> void:
 		var b: Button = outfit_buttons["armor:" + id]
 		b.text = _outfit_label(a.name, a.price, "  (Def +%d)" % a.def, owned, GameState.armor == id)
 		b.disabled = not owned and GameState.gold < a.price
-	(outfit_buttons["back"] as Button).text = "Back to the market"
+	(outfit_buttons["back"] as Button).text = "Leave the counter"
 	outfit_preview.queue_redraw()
 
 
@@ -699,7 +725,6 @@ func _refresh_shop() -> void:
 		b.charm.disabled = gs.gold < gs.charm_cost()
 	b.sell.text = "Sell crops, fish and mushrooms (%d gold)" % gs.sale_value()
 	b.sell.disabled = gs.sale_value() <= 0
-	b.outfits.text = "Outfitter: hats and armor"
 	b.leave.text = "Leave"
 
 

@@ -75,10 +75,10 @@ const DEFS := {
 		"reward": {"gold": 250},
 		"offer": [
 			"There's one more problem...",
-			"A huge King Slime lurks on the second floor of the cave. Take the ladder at the east end of the first floor.",
-			"Defeat it and I'll give you 250 gold. Bring potions, and be at full health.",
+			"A huge King Slime lurks in his own chamber at the bottom of the cave. Take the ladders down at the east end of floors 1 and 2.",
+			"Defeat it and I'll give you 250 gold, and whatever treasure he guards is yours. Bring potions and food, and be at full health.",
 		],
-		"remind": "The King Slime is still out there, on the cave's second floor.",
+		"remind": "The King Slime is still down there, in the chamber below cave floor 2.",
 		"thanks": ["You beat the King Slime?! Mossbrook is saved!"],
 	},
 }
@@ -96,7 +96,7 @@ const IDLE := {
 	],
 	"captain": [
 		"Captain Vale, town watch. Quiet night so far... too quiet.",
-		"Armor reduces every hit you take. Mara's outfitter has some good sets.",
+		"Armor reduces every hit you take. Brann's Armory has some good sets.",
 		"Monsters raid the farm at night. Sleeping at home is the safest cure.",
 	],
 	"tilda": [
@@ -111,7 +111,7 @@ const IDLE := {
 	"finn": [
 		"Fresh bread! ...Sold out, sorry. The farm crops are going to the festival.",
 		"I heard the cave has treasure chests. Don't tell anyone I told you.",
-		"Mushroom soup is Mayor Rosa's secret weapon.",
+		"Mushroom soup is Mayor Rosa's secret weapon. Gunnar the butcher sells meat if you need a snack in the cave.",
 	],
 	"odo": [
 		"Shh! You'll scare the fish.",

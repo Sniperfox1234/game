@@ -31,6 +31,7 @@ var walking := false
 var facing_up := false
 var _step := 0
 var _step_timer := 0.0
+var _spark_time := 0.0
 
 
 func _ready() -> void:
@@ -49,6 +50,11 @@ func set_motion(is_walking: bool, up: bool) -> void:
 
 
 func _process(delta: float) -> void:
+	if GameState.hat == "slime_crown":
+		_spark_time += delta
+		if _spark_time >= 0.2:
+			_spark_time = 0.0
+			queue_redraw()
 	if not walking:
 		return
 	_step_timer += delta
@@ -112,3 +118,12 @@ func _draw_hat(bob: int) -> void:
 				continue
 			var col: Color = OUTLINE if c == "O" else (h.a if c == "A" else h.b)
 			draw_rect(Rect2(x - 8, h.y0 + i - 16 + bob, 1, 1), col)
+	if GameState.hat == "slime_crown":
+		# Twinkling sparkles around the crown.
+		var spots := [Vector2(3, -4), Vector2(12, -3), Vector2(1, 1), Vector2(14, 0), Vector2(8, -6), Vector2(5, -2)]
+		var k := int(Time.get_ticks_msec() / 200)
+		for i in 2:
+			var p: Vector2 = spots[(k + i * 3) % spots.size()]
+			draw_rect(Rect2(p.x - 8, p.y - 16 + bob, 1, 1), Color("fff6d0"))
+			draw_rect(Rect2(p.x - 9, p.y - 16 + bob, 3, 1), Color("fff6d0", 0.5))
+			draw_rect(Rect2(p.x - 8, p.y - 17 + bob, 1, 3), Color("fff6d0", 0.5))

@@ -7,6 +7,7 @@ const Quests := preload("res://quests.gd")
 const UiStyle := preload("res://ui_style.gd")
 const CHARS_PER_SEC := 60.0
 const BAR_W := 160.0
+const BOSS_W := 520.0
 
 var hint := ""
 
@@ -15,6 +16,9 @@ var tracker := Label.new()
 var toast_label := Label.new()
 var toast_box := PanelContainer.new()
 var speaker_tag := PanelContainer.new()
+var boss_box := PanelContainer.new()
+var boss_name := Label.new()
+var boss_fill := Panel.new()
 var arrow := Polygon2D.new()
 var _t := 0.0
 var toast_time := 0.0
@@ -79,6 +83,27 @@ func _ready() -> void:
 	speaker_tag.visible = false
 	add_child(speaker_tag)
 
+	# Boss mode: a big health bar at the bottom of the screen while a boss is alive.
+	var boss_inner := VBoxContainer.new()
+	boss_name.text = "King Slime"
+	boss_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	boss_name.add_theme_font_size_override("font_size", 20)
+	boss_name.add_theme_color_override("font_color", UiStyle.BORDER)
+	boss_inner.add_child(boss_name)
+	var boss_track := Panel.new()
+	boss_track.custom_minimum_size = Vector2(BOSS_W, 16)
+	boss_track.add_theme_stylebox_override("panel", _bar_style(Color("2a2540"), UiStyle.BORDER, 2))
+	boss_fill.add_theme_stylebox_override("panel", _bar_style(Color("c63a4e"), Color("ff8a9a"), 1))
+	boss_fill.position = Vector2(3, 3)
+	boss_fill.size = Vector2(BOSS_W - 6, 10)
+	boss_track.add_child(boss_fill)
+	boss_inner.add_child(boss_track)
+	boss_box.add_theme_stylebox_override("panel", UiStyle.pill(UiStyle.BG))
+	boss_box.add_child(boss_inner)
+	boss_box.position = Vector2((1152 - BOSS_W) / 2.0 - 20.0, 566)
+	boss_box.visible = false
+	add_child(boss_box)
+
 	arrow.polygon = PackedVector2Array([Vector2(-7, -5), Vector2(7, -5), Vector2(0, 5)])
 	arrow.color = UiStyle.BORDER
 	arrow.visible = false
@@ -135,6 +160,10 @@ func _process(delta: float) -> void:
 	var extra := ""
 	if GameState.defense() > 0:
 		extra += "   Def: %d" % GameState.defense()
+	if GameState.meat > 0:
+		extra += "   Meat: %d" % GameState.meat
+	if GameState.steak > 0:
+		extra += "   Steak: %d" % GameState.steak
 	if GameState.wood > 0:
 		extra += "   Wood: %d" % GameState.wood
 	if GameState.stone > 0:
@@ -148,6 +177,16 @@ func _process(delta: float) -> void:
 	hp_fill.size.x = maxf(BAR_W * frac, 10.0)
 	hp_fill.visible = GameState.hp > 0
 	tracker.text = Quests.tracker_text()
+
+	var boss: Node = null
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.get("boss"):
+			boss = e
+			break
+	boss_box.visible = boss != null
+	toast_box.position.y = 520.0 if boss != null else 584.0
+	if boss != null:
+		boss_fill.size.x = maxf((BOSS_W - 6.0) * clampf(float(boss.hp) / boss.max_hp, 0.0, 1.0), 6.0)
 
 	if toast_time > 0.0:
 		toast_time -= delta

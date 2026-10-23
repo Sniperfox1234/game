@@ -23,6 +23,20 @@ const IRON_L := Color("5d5880")
 const GLASS_D := Color("f2c14e")
 const GLASS := Color("ffe08a")
 const GLASS_L := Color("fff6d0")
+const MEAT := Color("d4605a")
+const MEAT_L := Color("f08a7e")
+const MEAT_D := Color("a03c3c")
+const FAT := Color("f3d7c3")
+const BONE := Color("f5f5f5")
+const RED := Color("9c2a3a")
+const RED_L := Color("c43f52")
+const GOLD := Color("e8c872")
+const GOLD_D := Color("b08a3a")
+const FIRE := Color("ff8a2a")
+const FIRE_L := Color("ffd966")
+const SLATE_A := Color("4b4b62")
+const SLATE_B := Color("565670")
+const SLATE_G := Color("33334a")
 const BLOOMS := [Color("ff6b8b"), Color("f2c14e"), Color("b86bff"), Color("f5f5f5"), Color("ff9f43"), Color("6ba8ff")]
 
 const FOUNTAIN_FRAMES := 6
@@ -287,3 +301,391 @@ static func _flower(img: Image, x: int, y: int, rng: RandomNumberGenerator) -> v
 		_: # bud
 			rect(img, x, y, 2, 2, bloom)
 			put(img, x, y, bloom.lightened(0.35))
+
+
+# ---------- shop interiors ----------
+
+# A wooden shop counter `tiles` wide: planked front and a light top. Origin is the top-left; 22px tall.
+static func counter(tiles: int) -> Texture2D:
+	var key := "counter_%d" % tiles
+	if _cache.has(key):
+		return _cache[key]
+	var w := tiles * 16
+	var img := canvas(w, 24)
+	rect(img, 0, 0, w, 22, OUT)
+	rect(img, 1, 1, w - 2, 8, WOOD_L)
+	for x in range(3, w - 6, 9):
+		rect(img, x, 3, 5, 1, WOOD_M)
+		rect(img, x + 4, 6, 4, 1, WOOD_M)
+	rect(img, 1, 9, w - 2, 1, WOOD_D)
+	rect(img, 1, 10, w - 2, 11, WOOD_M)
+	for x in range(8, w - 1, 16):
+		rect(img, x, 10, 1, 11, WOOD_D)
+	rect(img, 1, 20, w - 2, 1, WOOD_D)
+	for p in [Vector2i(0, 0), Vector2i(w - 1, 0)]:
+		img.set_pixel(p.x, p.y, Color(0, 0, 0, 0))
+	ellipse(img, w / 2.0, 23, w / 2.0 - 2, 1.5, Color(0, 0, 0, 0.25))
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+# A woven rug with a contrasting border and fringe. Origin is the top-left.
+static func rug(tiles_w: int, tiles_h: int, main: Color, trim: Color) -> Texture2D:
+	var key := "rug_%d_%d_%s" % [tiles_w, tiles_h, main.to_html()]
+	if _cache.has(key):
+		return _cache[key]
+	var w := tiles_w * 16
+	var h := tiles_h * 16
+	var img := canvas(w, h)
+	rect(img, 2, 0, w - 4, h, OUT)
+	rect(img, 3, 1, w - 6, h - 2, trim)
+	rect(img, 6, 4, w - 12, h - 8, OUT)
+	rect(img, 7, 5, w - 14, h - 10, main)
+	for x in range(9, w - 9, 6):
+		for y in range(7, h - 7, 6):
+			put(img, x, y, trim)
+			put(img, x + 1, y, trim)
+			put(img, x, y + 1, trim)
+	for y in range(2, h - 2, 3):
+		put(img, 0, y, trim)
+		put(img, 1, y, trim)
+		put(img, w - 1, y, trim)
+		put(img, w - 2, y, trim)
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+# A wall rack hung with a ham, sausage links and a cured leg. Origin is the top-left; 44x34.
+static func meat_rack() -> Texture2D:
+	if _cache.has("meat_rack"):
+		return _cache["meat_rack"]
+	var img := canvas(44, 34)
+	# Wooden bar and hooks.
+	rect(img, 0, 0, 44, 5, OUT)
+	rect(img, 1, 1, 42, 3, WOOD_M)
+	rect(img, 1, 1, 42, 1, WOOD_L)
+	for x in [8, 22, 36]:
+		rect(img, x, 5, 1, 3, OUT)
+	# Ham: round body, bone at the bottom.
+	ellipse(img, 8.5, 17, 7, 9, OUT)
+	ellipse(img, 8.5, 17, 6, 8, MEAT)
+	ellipse(img, 7.5, 14, 3.5, 4.5, MEAT_L)
+	ellipse(img, 9.5, 21, 3, 3, MEAT_D)
+	rect(img, 7, 26, 3, 5, OUT)
+	rect(img, 8, 26, 1, 4, BONE)
+	# Sausage links in a chain.
+	for i in 4:
+		ellipse(img, 22.5, 11 + i * 6, 4, 3.4, OUT)
+		ellipse(img, 22.5, 11 + i * 6, 3, 2.5, MEAT_D)
+		put(img, 21, 10 + i * 6, MEAT)
+		put(img, 22, 10 + i * 6, MEAT_L)
+	# Cured leg with fat cap.
+	ellipse(img, 36.5, 15, 5, 8, OUT)
+	ellipse(img, 36.5, 15, 4, 7, MEAT_D)
+	ellipse(img, 36, 11, 3, 4, FAT)
+	ellipse(img, 37, 18, 2, 3, MEAT)
+	rect(img, 35, 22, 3, 7, OUT)
+	rect(img, 36, 22, 1, 6, BONE)
+	_cache["meat_rack"] = tex(img)
+	return _cache["meat_rack"]
+
+
+# A tree-stump chopping block with a cleaver stuck in it. Origin is the bottom-centre; 24x22.
+static func chopping_block() -> Texture2D:
+	if _cache.has("block"):
+		return _cache["block"]
+	var img := canvas(24, 22)
+	ellipse(img, 12, 20, 10, 2, Color(0, 0, 0, 0.28))
+	rect(img, 3, 8, 18, 11, OUT)
+	rect(img, 4, 9, 16, 9, WOOD_M)
+	rect(img, 4, 9, 3, 9, WOOD_L)
+	rect(img, 17, 9, 3, 9, WOOD_D)
+	ellipse(img, 12, 8, 9.5, 4.5, OUT)
+	ellipse(img, 12, 8, 8.5, 3.5, WOOD_L)
+	ellipse(img, 12, 8, 4.5, 1.8, WOOD_M)
+	ellipse(img, 12, 8, 1.8, 0.8, WOOD_D)
+	# Cleaver: steel blade and wooden handle.
+	rect(img, 13, 0, 8, 7, OUT)
+	rect(img, 14, 1, 6, 5, STONE_L)
+	rect(img, 14, 4, 6, 2, STONE_M)
+	rect(img, 20, 3, 4, 2, OUT)
+	rect(img, 20, 3, 3, 1, WOOD_M)
+	_cache["block"] = tex(img)
+	return _cache["block"]
+
+
+# ---------- armory ----------
+
+# Checkered slate flagstones, `tw` x `th` tiles. Origin is the top-left.
+static func slate_floor(tw: int, th: int) -> Texture2D:
+	var key := "slate_%d_%d" % [tw, th]
+	if _cache.has(key):
+		return _cache[key]
+	var img := canvas(tw * 16, th * 16)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	for ty in th:
+		for tx in tw:
+			var base := SLATE_A if (tx + ty) % 2 == 0 else SLATE_B
+			rect(img, tx * 16, ty * 16, 16, 16, base)
+			rect(img, tx * 16, ty * 16, 16, 1, base.lightened(0.12))
+			rect(img, tx * 16, ty * 16, 1, 16, base.lightened(0.08))
+			rect(img, tx * 16, ty * 16 + 15, 16, 1, SLATE_G)
+			rect(img, tx * 16 + 15, ty * 16, 1, 16, SLATE_G)
+			for i in 6:
+				put(img, tx * 16 + rng.randi_range(2, 13), ty * 16 + rng.randi_range(2, 13), base.darkened(0.12) if rng.randf() < 0.5 else base.lightened(0.08))
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+# A heraldic banner hanging from a rod, with a swallow-tail bottom. Origin is the top-left; 16x40.
+static func banner() -> Texture2D:
+	if _cache.has("banner"):
+		return _cache["banner"]
+	var img := canvas(16, 40)
+	rect(img, 0, 0, 16, 4, OUT)
+	rect(img, 1, 1, 14, 2, WOOD_M)
+	rect(img, 1, 1, 14, 1, WOOD_L)
+	rect(img, 2, 4, 12, 34, OUT)
+	rect(img, 3, 4, 10, 33, RED)
+	rect(img, 3, 4, 2, 33, RED_L)
+	rect(img, 3, 4, 10, 1, GOLD)
+	rect(img, 3, 4, 1, 33, GOLD_D)
+	rect(img, 12, 4, 1, 33, GOLD_D)
+	# Shield emblem with a cross.
+	rect(img, 5, 10, 6, 9, OUT)
+	rect(img, 6, 11, 4, 7, GOLD)
+	rect(img, 7, 11, 2, 7, RED)
+	rect(img, 6, 13, 4, 2, RED)
+	rect(img, 7, 18, 2, 1, OUT)
+	# Swallow-tail.
+	for y in range(33, 38):
+		var cut := (y - 32)
+		for x in range(8 - cut, 8 + cut):
+			if x >= 3 and x < 13:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	for y in range(33, 38):
+		var cut := (y - 32)
+		put(img, 8 - cut - 1, y, OUT)
+		put(img, 8 + cut, y, OUT)
+	_cache["banner"] = tex(img)
+	return _cache["banner"]
+
+
+# A wooden stand wearing a suit of plate armor with a red plume. Origin is the bottom-centre; 22x36.
+static func armor_stand() -> Texture2D:
+	if _cache.has("armor_stand"):
+		return _cache["armor_stand"]
+	var img := canvas(22, 36)
+	ellipse(img, 11, 34, 9, 2, Color(0, 0, 0, 0.3))
+	# Stand: foot and pole.
+	rect(img, 4, 31, 14, 4, OUT)
+	rect(img, 5, 32, 12, 2, WOOD_M)
+	rect(img, 9, 24, 4, 8, OUT)
+	rect(img, 10, 25, 2, 7, WOOD_M)
+	# Tassets and belt.
+	rect(img, 5, 21, 12, 6, OUT)
+	rect(img, 6, 22, 10, 4, STONE_M)
+	rect(img, 6, 22, 10, 1, WOOD_D)
+	rect(img, 10, 22, 2, 1, GOLD)
+	for x in [8, 11, 14]:
+		put(img, x, 25, STONE_D)
+	# Breastplate.
+	rect(img, 4, 11, 14, 11, OUT)
+	rect(img, 5, 12, 12, 9, STONE_M)
+	rect(img, 5, 12, 3, 9, STONE_L)
+	rect(img, 14, 12, 3, 9, STONE_D)
+	rect(img, 10, 13, 2, 7, STONE_D)
+	put(img, 10, 14, GOLD)
+	put(img, 11, 14, GOLD)
+	# Pauldrons.
+	ellipse(img, 3.5, 13.5, 3.5, 3.2, OUT)
+	ellipse(img, 3.5, 13.5, 2.5, 2.2, STONE_L)
+	ellipse(img, 18.5, 13.5, 3.5, 3.2, OUT)
+	ellipse(img, 18.5, 13.5, 2.5, 2.2, STONE_M)
+	# Helmet with visor slit and plume.
+	ellipse(img, 11, 7, 5.5, 6, OUT)
+	ellipse(img, 11, 7, 4.5, 5, STONE_M)
+	ellipse(img, 9.5, 5.5, 2, 2.5, STONE_L)
+	rect(img, 7, 7, 8, 2, OUT)
+	rect(img, 10, 9, 2, 3, OUT)
+	rect(img, 10, 0, 3, 3, OUT)
+	rect(img, 11, 0, 1, 3, RED_L)
+	put(img, 12, 1, RED)
+	_cache["armor_stand"] = tex(img)
+	return _cache["armor_stand"]
+
+
+# A wall rack of weapons: two swords, an axe and a spear. Origin is the top-left; 44x30.
+static func weapon_rack() -> Texture2D:
+	if _cache.has("weapon_rack"):
+		return _cache["weapon_rack"]
+	var img := canvas(44, 30)
+	rect(img, 0, 0, 44, 30, OUT)
+	rect(img, 1, 1, 42, 28, WOOD_D)
+	rect(img, 1, 1, 42, 2, WOOD_M)
+	rect(img, 1, 27, 42, 2, WOOD_M)
+	rect(img, 1, 12, 42, 2, WOOD_M)
+	# Sword, left.
+	rect(img, 6, 3, 5, 24, OUT)
+	rect(img, 7, 4, 3, 20, STONE_L)
+	rect(img, 9, 4, 1, 20, STONE_M)
+	rect(img, 4, 21, 9, 3, OUT)
+	rect(img, 5, 22, 7, 1, GOLD)
+	rect(img, 7, 24, 3, 3, WOOD_M)
+	# Sword, second.
+	rect(img, 15, 3, 5, 24, OUT)
+	rect(img, 16, 4, 3, 20, STONE_M)
+	rect(img, 18, 4, 1, 20, STONE_D)
+	rect(img, 13, 21, 9, 3, OUT)
+	rect(img, 14, 22, 7, 1, GOLD_D)
+	rect(img, 16, 24, 3, 3, WOOD_M)
+	# Axe.
+	rect(img, 27, 3, 2, 24, OUT)
+	rect(img, 27, 4, 1, 23, WOOD_L)
+	ellipse(img, 31, 8, 5, 5, OUT)
+	ellipse(img, 31, 8, 4, 4, STONE_M)
+	ellipse(img, 32, 8, 2.5, 3, STONE_L)
+	rect(img, 25, 5, 4, 6, OUT)
+	rect(img, 26, 6, 3, 4, STONE_D)
+	# Spear.
+	rect(img, 38, 6, 2, 21, OUT)
+	rect(img, 38, 7, 1, 20, WOOD_L)
+	rect(img, 37, 1, 4, 7, OUT)
+	rect(img, 38, 2, 2, 5, STONE_L)
+	_cache["weapon_rack"] = tex(img)
+	return _cache["weapon_rack"]
+
+
+# A stone forge with a glowing mouth and chimney. Origin is the bottom-centre; 36x34.
+static func forge() -> Texture2D:
+	if _cache.has("forge"):
+		return _cache["forge"]
+	var img := canvas(36, 34)
+	ellipse(img, 18, 32, 16, 2, Color(0, 0, 0, 0.3))
+	rect(img, 12, 0, 12, 8, OUT)
+	rect(img, 13, 0, 10, 7, STONE_D)
+	rect(img, 3, 6, 30, 26, OUT)
+	rect(img, 4, 7, 28, 24, STONE_M)
+	rect(img, 4, 7, 28, 2, STONE_L)
+	# Brick seams.
+	for y in range(11, 30, 5):
+		rect(img, 4, y, 28, 1, STONE_D)
+		for x in range(6 + (y % 2) * 5, 32, 10):
+			rect(img, x, y, 1, 5, STONE_D)
+	# Glowing mouth.
+	rect(img, 9, 15, 18, 15, OUT)
+	rect(img, 10, 16, 16, 14, Color("5a1f10"))
+	ellipse(img, 18, 27, 7, 5, FIRE)
+	ellipse(img, 18, 27, 4.5, 3, FIRE_L)
+	for x in [12, 16, 20, 23]:
+		rect(img, x, 22, 2, 3, FIRE)
+	_cache["forge"] = tex(img)
+	return _cache["forge"]
+
+
+# A wall torch; two flame frames. Origin is the top-left; 8x18.
+static func torch(frame: int) -> Texture2D:
+	var key := "torch_%d" % frame
+	if _cache.has(key):
+		return _cache[key]
+	var img := canvas(8, 18)
+	rect(img, 2, 8, 4, 3, OUT)
+	rect(img, 3, 9, 2, 1, IRON_L)
+	rect(img, 3, 10, 2, 8, OUT)
+	rect(img, 3, 11, 2, 6, WOOD_M)
+	var lean := 0 if frame == 0 else 1
+	ellipse(img, 4 + lean * 0.5, 5, 3, 4.5, OUT)
+	ellipse(img, 4 + lean * 0.5, 5.5, 2.2, 3.7, FIRE)
+	ellipse(img, 4 + lean * 0.5, 6.5, 1.2, 2.2, FIRE_L)
+	put(img, 4 + lean, 0, FIRE)
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+# ---------- boss chamber ----------
+
+# A glowing rune ring for the boss arena, `rx` x `ry` px radius. Origin is the centre.
+static func rune_circle(rx: int, ry: int) -> Texture2D:
+	var key := "rune_%d_%d" % [rx, ry]
+	if _cache.has(key):
+		return _cache[key]
+	var w := rx * 2 + 8
+	var h := ry * 2 + 8
+	var img := canvas(w, h)
+	var cx := w / 2.0
+	var cy := h / 2.0
+	var glow := Color("b86bff")
+	var dark := Color("3a1f5c")
+	for y in h:
+		for x in w:
+			var dx := (x + 0.5 - cx) / rx
+			var dy := (y + 0.5 - cy) / ry
+			var d := dx * dx + dy * dy
+			if d <= 1.0 and d >= 0.9:
+				put(img, x, y, glow if d < 0.96 else dark)
+			elif d <= 0.74 and d >= 0.68:
+				put(img, x, y, Color(glow, 0.8))
+			elif d <= 0.42 and d >= 0.38:
+				put(img, x, y, Color(glow, 0.55))
+	# Spokes and tick marks.
+	for k in 16:
+		var a := TAU * k / 16.0
+		for r in [0.82, 0.86, 0.9]:
+			put(img, roundi(cx + rx * r * cos(a)), roundi(cy + ry * r * sin(a)), GOLD if k % 2 == 0 else glow)
+	for k in 8:
+		var a := TAU * k / 8.0 + PI / 8.0
+		for r in [0.45, 0.52, 0.59, 0.66]:
+			put(img, roundi(cx + rx * r * cos(a)), roundi(cy + ry * r * sin(a)), Color(glow, 0.7))
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+# The King Slime's treasure chest: purple with gold bands and a slime-green lock. Origin is the
+# bottom-centre; 28x26. When open the lid is propped up and the inside shines.
+static func royal_chest(open: bool) -> Texture2D:
+	var key := "royal_%s" % open
+	if _cache.has(key):
+		return _cache[key]
+	var img := canvas(28, 26)
+	var purple := Color("5b3fa0")
+	var purple_l := Color("7d5cc9")
+	var purple_d := Color("3d2870")
+	var green := Color("5de08a")
+	ellipse(img, 14, 24, 12, 2, Color(0, 0, 0, 0.3))
+	# Body.
+	rect(img, 2, 12, 24, 12, OUT)
+	rect(img, 3, 13, 22, 10, purple)
+	rect(img, 3, 13, 22, 2, purple_l)
+	rect(img, 3, 21, 22, 2, purple_d)
+	rect(img, 6, 13, 2, 10, GOLD)
+	rect(img, 20, 13, 2, 10, GOLD)
+	if open:
+		# Lid swung back, with light spilling out of the chest.
+		rect(img, 2, 2, 24, 6, OUT)
+		rect(img, 3, 3, 22, 4, purple_d)
+		rect(img, 3, 3, 22, 1, purple)
+		rect(img, 6, 3, 2, 4, GOLD)
+		rect(img, 20, 3, 2, 4, GOLD)
+		rect(img, 3, 8, 22, 5, OUT)
+		rect(img, 4, 9, 20, 4, GLASS_L)
+		rect(img, 6, 9, 16, 2, FOAM)
+		for x in [8, 13, 18]:
+			rect(img, x, 7, 2, 2, GLASS)
+	else:
+		# Rounded lid.
+		rect(img, 2, 6, 24, 7, OUT)
+		rect(img, 3, 7, 22, 5, purple)
+		rect(img, 3, 7, 22, 1, purple_l)
+		rect(img, 6, 7, 2, 5, GOLD)
+		rect(img, 20, 7, 2, 5, GOLD)
+		rect(img, 4, 5, 20, 2, OUT)
+		rect(img, 5, 6, 18, 1, purple_l)
+		# Slime-green lock.
+		rect(img, 11, 10, 6, 6, OUT)
+		rect(img, 12, 11, 4, 4, green)
+		put(img, 13, 12, FOAM)
+		put(img, 13, 14, OUT)
+		put(img, 14, 14, OUT)
+	_cache[key] = tex(img)
+	return _cache[key]

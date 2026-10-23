@@ -1,6 +1,6 @@
 extends Node2D
 # Small bits of scenery. Set `kind` before adding to the tree:
-#   lamp (lights up at night), bench, flowers (a planter w px wide), fence (w x h px rectangle with
+#   lamp (lights up at night), torch (always lit, flickers), bench, flowers (a planter w px wide), fence (w x h px rectangle with
 #   a gap in the top edge), critter (a dungeon-sheet sprite that hops about).
 # Origin is the bottom-centre, except flowers and fence where it is the top-left corner.
 
@@ -36,6 +36,20 @@ func _ready() -> void:
 			_light.visible = false
 			add_child(_light)
 			set_process(true)
+		"torch":
+			var s := Sprite2D.new()
+			s.name = "Flame"
+			s.texture = PixelArt.torch(0)
+			s.centered = false
+			add_child(s)
+			_light = PointLight2D.new()
+			_light.texture = PixelArt.light()
+			_light.texture_scale = 1.1
+			_light.color = Color(1.0, 0.62, 0.25)
+			_light.energy = 0.9
+			_light.position = Vector2(4, 5)
+			add_child(_light)
+			set_process(true)
 		"bench":
 			var s := Sprite2D.new()
 			s.texture = PixelArt.bench()
@@ -63,6 +77,12 @@ func _process(delta: float) -> void:
 		var s := get_node("Sprite") as Sprite2D
 		s.position.y = -15.0 - absf(sin(_t * 3.0)) * 2.0
 		s.flip_h = sin(_t * 0.7) > 0.0
+	elif kind == "torch":
+		_check -= delta
+		if _check <= 0.0:
+			_check = randf_range(0.1, 0.2)
+			(get_node("Flame") as Sprite2D).texture = PixelArt.torch(randi() % 2)
+			_light.energy = randf_range(0.8, 1.0)
 	elif kind == "lamp":
 		_check -= delta
 		if _check <= 0.0:

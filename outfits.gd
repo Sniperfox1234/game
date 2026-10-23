@@ -41,6 +41,16 @@ const HATS := {
 			"...OOOOOOOOOO...",
 		],
 	},
+	"slime_crown": {
+		"name": "Slime King's Crown", "price": 0, "unique": true, "y0": -2, "a": Color("f2c14e"), "b": Color("5de08a"),
+		"rows": [
+			"....O..OO..O....",
+			"....OAOAAOAO....",
+			"....OAABBAAO....",
+			"...OAAAAAAAAO...",
+			"...OBBBBBBBBO...",
+		],
+	},
 	"crown": {
 		"name": "Golden Crown", "price": 400, "y0": -1, "a": Color("f2c14e"), "b": Color("e84a5f"),
 		"rows": [

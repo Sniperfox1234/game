@@ -2,6 +2,7 @@ extends CharacterBody2D
 # Every monster in the game. `kind` picks stats, sprite and behaviour. Origin is at the feet.
 
 signal died(enemy: Node)
+signal summon(kind: String, pos: Vector2)
 
 const Tiles := preload("res://tiles.gd")
 const DUNGEON := preload("res://assets/dungeon/tiles.png")
@@ -15,7 +16,7 @@ const KINDS := {
 	"wizard": {"tile": 84, "hp": 3, "speed": 30.0, "radius": 7.0, "contact": 1, "aggro": 150.0, "ai": "shoot", "gold": Vector2i(5, 8), "xp": 8},
 	"ghost": {"tile": 121, "hp": 4, "speed": 24.0, "radius": 7.0, "contact": 2, "aggro": 170.0, "ai": "float", "gold": Vector2i(5, 8), "xp": 8},
 	"ogre": {"tile": 109, "hp": 9, "speed": 24.0, "radius": 9.0, "contact": 3, "aggro": 110.0, "ai": "walk", "gold": Vector2i(10, 15), "xp": 14},
-	"king": {"tile": 108, "hp": 18, "speed": 34.0, "radius": 14.0, "contact": 2, "aggro": 170.0, "ai": "king", "gold": Vector2i(60, 60), "xp": 80},
+	"king": {"tile": 108, "hp": 26, "speed": 34.0, "radius": 14.0, "contact": 2, "aggro": 170.0, "ai": "king", "gold": Vector2i(60, 60), "xp": 80},
 }
 
 var kind := "slime"
@@ -43,6 +44,7 @@ var cooldown := 1.5
 var state := 0 # charge: 0 walk, 1 wind-up, 2 dash. king: 0 chase, 1 telegraph.
 var state_time := 0.0
 var lock_dir := Vector2.ZERO
+var summoned := false
 var t := randf() * 10.0
 
 var boss: bool:
@@ -206,6 +208,12 @@ func _shoot(dir: Vector2, dist: float, awake: bool) -> Vector2:
 
 
 func _king(delta: float, dir: Vector2, awake: bool) -> Vector2:
+	# At half health the King calls three slimes to his side, once.
+	if not summoned and hp <= max_hp / 2:
+		summoned = true
+		flash = 0.4
+		for i in 3:
+			summon.emit("slime", position + Vector2.from_angle(TAU * i / 3.0 + 0.5) * 30.0)
 	if state == 1:
 		state_time -= delta
 		if state_time <= 0.0:
