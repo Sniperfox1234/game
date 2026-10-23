@@ -11,6 +11,7 @@ const EnemyScript := preload("res://enemy.gd")
 const WaterScript := preload("res://water.gd")
 const PickupScript := preload("res://pickup.gd")
 const AvatarScript := preload("res://avatar.gd")
+const UiStyle := preload("res://ui_style.gd")
 const Outfits := preload("res://outfits.gd")
 const TOWN := preload("res://assets/town/tiles.png")
 const DUNGEON := preload("res://assets/dungeon/tiles.png")
@@ -436,7 +437,8 @@ func _build_shop_panel() -> void:
 	box.add_theme_constant_override("separation", 8)
 	var title := Label.new()
 	title.text = "Market  (Esc to leave)"
-	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", UiStyle.BORDER)
 	box.add_child(title)
 	shop_info.add_theme_font_size_override("font_size", 16)
 	box.add_child(shop_info)
@@ -452,7 +454,7 @@ func _build_shop_panel() -> void:
 	shop_panel.position = Vector2(340, 110)
 	shop_panel.custom_minimum_size = Vector2(470, 0)
 	shop_panel.visible = false
-	_solid_panel(shop_panel)
+	shop_panel.theme = UiStyle.menu_theme()
 	shop_layer.add_child(shop_panel)
 	_build_outfit_panel()
 
@@ -462,7 +464,8 @@ func _build_outfit_panel() -> void:
 	box.add_theme_constant_override("separation", 6)
 	var title := Label.new()
 	title.text = "Mara's Outfitter  (Esc to go back)"
-	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", UiStyle.BORDER)
 	box.add_child(title)
 	outfit_info.add_theme_font_size_override("font_size", 16)
 	box.add_child(outfit_info)
@@ -483,7 +486,7 @@ func _build_outfit_panel() -> void:
 	outfit_panel.position = Vector2(150, 30)
 	outfit_panel.custom_minimum_size = Vector2(560, 0)
 	outfit_panel.visible = false
-	_solid_panel(outfit_panel)
+	outfit_panel.theme = UiStyle.menu_theme()
 	shop_layer.add_child(outfit_panel)
 
 	outfit_backdrop.color = Color(0.1, 0.12, 0.2, 0.85)
@@ -496,14 +499,6 @@ func _build_outfit_panel() -> void:
 	outfit_preview.scale = Vector2(9, 9)
 	outfit_preview.visible = false
 	shop_layer.add_child(outfit_preview)
-
-
-func _solid_panel(panel: PanelContainer) -> void:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.14, 0.22, 1.0)
-	style.set_content_margin_all(12)
-	style.set_corner_radius_all(4)
-	panel.add_theme_stylebox_override("panel", style)
 
 
 func _add_outfit_button(box: VBoxContainer, key: String, action: Callable) -> void:
