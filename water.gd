@@ -2,6 +2,7 @@ extends Node2D
 # An animated pond you can fish in. Origin is the top-left corner; `size` is in pixels.
 
 var size := Vector2(96, 64)
+var plain := false # open sea: the terrain already draws the water, so skip the pond surface and bank
 var bobber := Vector2.INF
 var bite := false
 var _t := randf() * 10.0
@@ -12,6 +13,17 @@ var _splash_at := Vector2.ZERO
 
 func _ready() -> void:
 	z_index = -5
+	if plain:
+		return
+	var surface := ColorRect.new()
+	surface.size = size
+	surface.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/water.gdshader")
+	mat.set_shader_parameter("pond_px", size)
+	surface.material = mat
+	surface.show_behind_parent = true # so the bank, lily pads and bobber draw on top of it
+	add_child(surface)
 
 
 func _process(delta: float) -> void:
@@ -43,17 +55,29 @@ func splash(color: Color) -> void:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(-3, -3, size.x + 6, size.y + 6), Color("2e2233"))
-	draw_rect(Rect2(-2, -2, size.x + 4, size.y + 4), Color("e2c98f"))
-	draw_rect(Rect2(Vector2.ZERO, size), Color("3b82c4"))
-	draw_rect(Rect2(0, 0, size.x, 3), Color("2f6fb0"))
-	for i in int(size.x / 16.0):
-		for j in int(size.y / 16.0):
-			var x := i * 16.0 + 8.0 + sin(_t * 1.5 + i * 1.7 + j) * 3.0
-			var y := j * 16.0 + 8.0
-			draw_rect(Rect2(x - 4, y, 8, 1), Color("7cc0f0"))
+	if plain:
+		_draw_bobber()
+		return
+	# A sandy, softly shaded bank around the water.
+	var sand := Color("d8c48a")
+	var wet := Color("8a7448")
+	draw_rect(Rect2(-5, -5, size.x + 10, 5), wet)
+	draw_rect(Rect2(-5, size.y, size.x + 10, 5), wet)
+	draw_rect(Rect2(-5, 0, 5, size.y), wet)
+	draw_rect(Rect2(size.x, 0, 5, size.y), wet)
+	draw_rect(Rect2(-3, -3, size.x + 6, 3), sand)
+	draw_rect(Rect2(-3, size.y, size.x + 6, 3), sand)
+	draw_rect(Rect2(-3, 0, 3, size.y), sand)
+	draw_rect(Rect2(size.x, 0, 3, size.y), sand)
 	for p in [Vector2(0.2, 0.3), Vector2(0.7, 0.6), Vector2(0.45, 0.8)]:
-		draw_circle(size * p, 3.0, Color("4caf50"))
+		var c: Vector2 = size * p + Vector2(sin(_t * 0.8 + p.x * 9.0) * 1.2, cos(_t * 0.7 + p.y * 7.0) * 0.8)
+		draw_circle(c, 3.6, Color("2f7a3a"))
+		draw_circle(c + Vector2(-0.6, -0.6), 2.9, Color("52b050"))
+		draw_circle(c + Vector2(-1.0, -1.0), 1.1, Color("8fdc7a"))
+	_draw_bobber()
+
+
+func _draw_bobber() -> void:
 	if bobber != Vector2.INF:
 		var shake := sin(_t * 40.0) * 1.5 if bite else sin(_t * 3.0) * 0.5
 		var pos := bobber + Vector2(0, shake)

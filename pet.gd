@@ -8,6 +8,7 @@ extends CharacterBody2D
 const Tiles := preload("res://tiles.gd")
 const DUNGEON := preload("res://assets/dungeon/tiles.png")
 const BoltScript := preload("res://bolt.gd")
+const SoftShadow := preload("res://soft_shadow.gd")
 
 const KINDS := {
 	"dog": {"tile": 120, "name": "Biscuit", "speed": 85.0, "bite_cd": 0.7},
@@ -35,7 +36,8 @@ func _ready() -> void:
 	shape.shape = circle
 	shape.position = Vector2(0, -3)
 	add_child(shape)
-	sprite.texture = DUNGEON
+	SoftShadow.attach(self, Vector2(11, 4), Vector2(0, -1))
+	sprite.texture = Tiles.smooth(DUNGEON)
 	sprite.region_enabled = true
 	sprite.region_rect = Tiles.region(KINDS[kind].tile)
 	sprite.centered = false
@@ -135,7 +137,6 @@ func _fight(target: Node2D, info: Dictionary) -> Vector2:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(-4, -1, 8, 2), Color(0, 0, 0, 0.25))
 	if hearts > 0.0:
 		var y := -22.0 - (1.0 - hearts) * 8.0
 		for off in [-4.0, 4.0]:

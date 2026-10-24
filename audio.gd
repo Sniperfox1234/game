@@ -15,8 +15,11 @@ const SFX_NAMES := [
 	"bullseye", "gold_target", "miss", "pet", "night", "dawn", "sizzle", "cook_done", "freeze", "slam",
 	"ice_shatter", "victory",
 ]
-const MUSIC_NAMES := ["mus_farm", "mus_town", "mus_interior", "mus_night", "mus_cave", "mus_boss", "mus_frost"]
-const AMBIENCE_NAMES := ["amb_birds", "amb_crickets", "amb_wind", "amb_cave"]
+const MUSIC_NAMES := [
+	"mus_farm", "mus_town", "mus_interior", "mus_night", "mus_cave", "mus_boss", "mus_frost",
+	"mus_castle", "mus_desert", "mus_harbor", "mus_swamp", "mus_tomb", "mus_cove",
+]
+const AMBIENCE_NAMES := ["amb_birds", "amb_crickets", "amb_wind", "amb_cave", "amb_waves", "amb_swamp"]
 
 # Per-sound loudness in dB, since some effects are naturally louder than others.
 const GAIN := {

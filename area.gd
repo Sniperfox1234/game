@@ -15,6 +15,13 @@ const UiStyle := preload("res://ui_style.gd")
 const Fish := preload("res://fish.gd")
 const Cooking := preload("res://cooking.gd")
 const InventoryScript := preload("res://inventory.gd")
+const SoftShadow := preload("res://soft_shadow.gd")
+const FxScript := preload("res://fx.gd")
+const AmbientScript := preload("res://ambient_fx.gd")
+const TERRAIN_SHADER := preload("res://shaders/terrain.gdshader")
+const SWAY_SHADER := preload("res://shaders/sway.gdshader")
+# Old tile numbers (as used by the farm and town maps) -> terrain types for the ground shader.
+const TILE_TERRAIN := {12: 4, 13: 4, 14: 4, 24: 4, 25: 4, 26: 4, 36: 4, 37: 4, 38: 4, 40: 1, 43: 2}
 const InfoMenuScript := preload("res://info_menu.gd")
 const PetScript := preload("res://pet.gd")
 const PowerupScript := preload("res://powerup.gd")
@@ -47,6 +54,12 @@ var pickups: Array[Node2D] = []
 var choppables: Array[Dictionary] = []
 var pet_node: Node2D
 var inventory: CanvasLayer
+var terrain_mode := false
+var terrain_types := PackedByteArray()
+var terrain_rect: ColorRect
+var ambient: Node2D
+var _sway_materials := {}
+var _sun_check := 0.0
 var minigame: Node # an overlay mini-game (the shooting gallery) that takes over the keys while active
 var pet_entry := {}
 
@@ -70,19 +83,41 @@ var outfit_info := Label.new()
 var outfit_buttons := {} # "hat:crown" / "armor:plate" / "back" -> Button
 var outfit_preview := Node2D.new()
 var outfit_standalone := false
+var outfit_title: Label
+const SHOP_TITLES := {"brann": "Brann's Armory", "royal": "The Royal Armoury", "desert": "Zahra's Desert Wares", "harbor": "Salty's Outfitters"}
+var outfit_shop := "brann" # which shop is selling: its items show, other shops' items are hidden
 var outfit_backdrop := ColorRect.new()
 
 
-func begin(tex: Texture2D) -> void:
-	ground.tile_set = Tiles.tileset(tex)
-	ground.z_index = -10
-	add_child(ground)
+# `terrain` paints the ground with the smooth terrain shader instead of a tile grid.
+func begin(tex: Texture2D, terrain := false) -> void:
+	if terrain:
+		terrain_mode = true
+		terrain_types.resize(map_w * map_h)
+		terrain_types.fill(0)
+		terrain_rect = ColorRect.new()
+		terrain_rect.size = Vector2(map_w * 16, map_h * 16)
+		terrain_rect.z_index = -10
+		terrain_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(terrain_rect)
+	else:
+		ground.tile_set = Tiles.tileset(tex)
+		ground.z_index = -10
+		add_child(ground)
 	world.y_sort_enabled = true
 	add_child(world)
 	GameState.day_changed.connect(_on_new_day)
 
 
+func set_terrain(x: int, y: int, type: int) -> void:
+	if x >= 0 and y >= 0 and x < map_w and y < map_h:
+		terrain_types[y * map_w + x] = type
+
+
 func set_tile(x: int, y: int, idx: int) -> void:
+	if terrain_mode:
+		set_terrain(x, y, TILE_TERRAIN.get(idx, 0))
+		return
 	ground.set_cell(Vector2i(x, y), 0, Vector2i(idx % Tiles.COLS, floori(idx / float(Tiles.COLS))))
 
 
@@ -108,9 +143,36 @@ func spawn_player(pos: Vector2) -> void:
 	player.died.connect(_on_player_died)
 
 
+func _build_terrain() -> void:
+	var img := Image.create_empty(map_w, map_h, false, Image.FORMAT_R8)
+	for y in map_h:
+		for x in map_w:
+			img.set_pixel(x, y, Color(terrain_types[y * map_w + x] / 255.0, 0, 0))
+	var mat := ShaderMaterial.new()
+	mat.shader = TERRAIN_SHADER
+	mat.set_shader_parameter("types", ImageTexture.create_from_image(img))
+	mat.set_shader_parameter("map_tiles", Vector2i(map_w, map_h))
+	terrain_rect.material = mat
+
+
+# How this place is finished on screen. Areas override to tune it.
+func fx_profile() -> Dictionary:
+	return {"vignette": 0.30, "shafts": 0.07 if use_daylight else 0.0}
+
+
+# Which drifting particles to show. Areas override.
+func ambient_mode() -> String:
+	return ""
+
+
 # Call last in _ready: adds the lighting layer, HUD and shop panel on top of everything.
 func finish(hint: String = HINT) -> void:
+	if terrain_mode:
+		_build_terrain()
 	add_child(canvas_mod)
+	FxScript.attach(self, fx_profile())
+	ambient = AmbientScript.new()
+	player.add_child(ambient)
 	hud = HudScript.new()
 	hud.hint = hint
 	add_child(hud)
@@ -142,13 +204,30 @@ func travel(scene: String, spawn: String) -> void:
 
 # ---------- scenery helpers ----------
 
+# A shared wind-sway material. `base` is 0 for a piece on the ground, 1 for one stacked on top.
+func sway_material(base: float, strength := 1.3) -> ShaderMaterial:
+	var key := "%s_%s" % [base, strength]
+	if not _sway_materials.has(key):
+		var m := ShaderMaterial.new()
+		m.shader = SWAY_SHADER
+		m.set_shader_parameter("base", base)
+		m.set_shader_parameter("strength", strength)
+		_sway_materials[key] = m
+	return _sway_materials[key]
+
+
 func add_tree(tile: Vector2i, kind: int) -> void:
 	var tops := [4, 3, 4]
 	var bottoms := [16, 15, 16]
 	var tree := Node2D.new()
 	tree.position = Vector2(tile.x * 16, (tile.y + 1) * 16)
-	tree.add_child(Tiles.sprite(TOWN, tops[kind], Vector2(0, -32)))
-	tree.add_child(Tiles.sprite(TOWN, bottoms[kind], Vector2(0, -16)))
+	var top := Tiles.sprite(TOWN, tops[kind], Vector2(0, -32))
+	var bottom := Tiles.sprite(TOWN, bottoms[kind], Vector2(0, -16))
+	top.material = sway_material(1.0)
+	bottom.material = sway_material(0.0)
+	SoftShadow.attach(tree, Vector2(26, 10), Vector2(8, -2), 1.0)
+	tree.add_child(top)
+	tree.add_child(bottom)
 	world.add_child(tree)
 	add_blocker(tree, Rect2(3, -8, 10, 8))
 
@@ -156,7 +235,10 @@ func add_tree(tile: Vector2i, kind: int) -> void:
 func add_small_tree(tile: Vector2i, choppable := true) -> void:
 	var tree := Node2D.new()
 	tree.position = Vector2(tile.x * 16, (tile.y + 1) * 16)
-	tree.add_child(Tiles.sprite(TOWN, 28, Vector2(0, -16)))
+	var crown := Tiles.sprite(TOWN, 28, Vector2(0, -16))
+	crown.material = sway_material(0.0, 1.0)
+	SoftShadow.attach(tree, Vector2(16, 7), Vector2(8, -2), 0.7)
+	tree.add_child(crown)
 	world.add_child(tree)
 	var body := add_blocker(tree, Rect2(4, -8, 8, 8))
 	if not choppable:
@@ -232,6 +314,7 @@ func build_house(tile: Vector2i, rows: Array) -> Vector2:
 	base.position = Vector2(tile.x * 16, (tile.y + 4) * 16)
 	world.add_child(base)
 	var width: int = rows[0].size()
+	SoftShadow.attach(base, Vector2(width * 16 + 14, 18), Vector2(width * 8, -2), 0.8)
 	for r in rows.size():
 		for c in width:
 			base.add_child(Tiles.sprite(TOWN, rows[r][c], Vector2(c * 16, (r - 4) * 16)))
@@ -365,6 +448,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			hud.toast("Yum! +%d HP" % healed)
 	elif event.is_action_pressed("potion"):
 		if GameState.use_potion():
+			player.cure_poison()
 			Audio.sfx("potion")
 			hud.toast("Glug! +5 HP")
 		elif GameState.potions <= 0:
@@ -390,6 +474,12 @@ func _process(delta: float) -> void:
 		_audio_check = 0.5
 		Audio.music(music_for())
 		Audio.ambience(ambience_for())
+		if ambient:
+			ambient.call("set_mode", ambient_mode())
+	_sun_check -= delta
+	if _sun_check <= 0.0:
+		_sun_check = 0.3
+		_update_sun()
 	if use_daylight:
 		canvas_mod.color = daylight(GameState.time_of_day)
 	_fishing_tick(delta)
@@ -400,6 +490,12 @@ func _process(delta: float) -> void:
 
 func _area_process(_delta: float) -> void:
 	pass
+
+
+# Points every soft shadow away from the sun (or lights them evenly in places with no sun).
+func _update_sun() -> void:
+	var s: Array = FxScript.sun(GameState.time_of_day) if use_daylight else [0.0, 1.0, 0.42]
+	get_tree().call_group("soft_shadows", "update_sun", s[0], s[1], s[2])
 
 
 func _on_new_day(_day: int) -> void:
@@ -455,7 +551,7 @@ func _fish_press() -> void:
 		GameState.gold += 15
 		_end_fishing("You found 15 gold in the mud!")
 	else:
-		var caught := Fish.roll(speed_bonus, GameState.rod)
+		var caught := Fish.roll(speed_bonus + fish_luck, GameState.rod)
 		var rarity: String = caught.rarity
 		var info: Dictionary = Fish.INFO[rarity]
 		var is_new := GameState.record_catch(caught.species, rarity)
@@ -497,6 +593,12 @@ func spawn_enemy(kind: String, pos: Vector2, raider := false) -> Node:
 func _on_summon(kind: String, pos: Vector2) -> void:
 	if kind == "orb":
 		spawn_powerup(pos)
+	elif kind.begins_with("hazard_"):
+		var h := Node2D.new()
+		h.set_script(load("res://hazard.gd"))
+		h.kind = kind.substr(7)
+		h.position = pos
+		world.add_child(h)
 	else:
 		spawn_enemy(kind, pos)
 
@@ -675,6 +777,121 @@ func _cook(recipe: Dictionary) -> void:
 	refresh_menu()
 
 
+# ---------- people and travel (used by the town and every region) ----------
+
+# Where the carriage can take you: scene, fare in gold, and a hint of how tough it is.
+const DESTINATIONS := {
+	"town": {"name": "Mossbrook", "scene": "res://town.tscn", "fare": 0, "hint": "Home sweet home."},
+	"castle": {"name": "Highgarden Castle", "scene": "res://castle.tscn", "fare": 20, "hint": "A safe royal court. Good shops, grand quests."},
+	"desert": {"name": "Sunscar Desert", "scene": "res://desert.tscn", "fare": 30, "hint": "Dunes, an oasis and a pyramid tomb. Level 8 or higher."},
+	"harbor": {"name": "Port Saltmere", "scene": "res://harbor.tscn", "fare": 30, "hint": "Docks, ocean fishing and a pirate cove. Level 10 or higher."},
+	"swamp": {"name": "Mistmere Swamp", "scene": "res://swamp.tscn", "fare": 30, "hint": "Poisonous bog and a witch's lair. Level 12 or higher."},
+}
+var fish_luck := 0.0 # extra luck when fishing here (the open sea is generous)
+var region_id := "" # which DESTINATIONS entry this area is, so the carriage doesn't offer it
+
+
+func add_npc(id: String, display: String, tile: int, pos: Vector2, wander := 0.0, tint := Color.WHITE, block := true) -> Node2D:
+	var npc := Node2D.new()
+	npc.set_script(load("res://npc.gd"))
+	npc.npc_id = id
+	npc.display_name = display
+	npc.tile = tile
+	npc.position = pos
+	npc.wander_r = wander
+	npc.tint = tint
+	world.add_child(npc)
+	if wander == 0.0 and block:
+		add_blocker(npc, Rect2(-4, -6, 8, 6))
+	return npc
+
+
+# Says the NPC's quest dialogue (or an idle line), then runs `then` if given.
+func say_then(npc: Node2D, then: Callable = Callable()) -> void:
+	var t := Quests.talk(npc.npc_id)
+	var after: Callable = t.get("after", Callable())
+	hud.say(npc.display_name, t.lines, func():
+		if after.is_valid():
+			var msg: String = after.call()
+			if msg != "":
+				hud.toast(msg)
+		if then.is_valid():
+			then.call())
+
+
+# A villager who simply chats (quest or idle lines) when you press Space.
+func add_chatter(id: String, display: String, tile: int, pos: Vector2, wander := 0.0, tint := Color.WHITE) -> Node2D:
+	var npc := add_npc(id, display, tile, pos, wander, tint)
+	add_interactable(npc, 28.0, func(): say_then(npc))
+	return npc
+
+
+func add_label(text: String, pos: Vector2, color := Color("fff3c4")) -> void:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", 8)
+	l.add_theme_color_override("font_color", color)
+	l.add_theme_color_override("font_outline_color", Color("2e2233"))
+	l.add_theme_constant_override("outline_size", 3)
+	l.z_index = 30
+	world.add_child(l)
+	l.position = pos - Vector2(ThemeDB.fallback_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x / 2.0 + 2.0, 0)
+
+
+func add_decor(kind: String, pos: Vector2, size := Vector2.ZERO) -> Node2D:
+	var d := Node2D.new()
+	d.set_script(load("res://decor.gd"))
+	d.kind = kind
+	d.position = pos
+	if size != Vector2.ZERO:
+		d.w = size.x
+		d.h = size.y
+	world.add_child(d)
+	return d
+
+
+# A horse and wagon with a driver. Talk to him to travel to another place.
+func add_carriage(pos: Vector2) -> void:
+	var cart := Node2D.new()
+	cart.position = pos
+	var s := Sprite2D.new()
+	s.texture = load("res://pixel_art.gd").carriage()
+	s.centered = false
+	s.position = Vector2(-38, -37)
+	cart.add_child(s)
+	world.add_child(cart)
+	add_blocker(cart, Rect2(-34, -16, 68, 16))
+	SoftShadow.attach(cart, Vector2(76, 12), Vector2(0, -2), 0.5)
+	var driver := add_npc("rolf", "Rolf the Driver", 86, pos + Vector2(46, -2), 0.0, Color(0.9, 0.8, 0.6))
+	add_interactable(driver, 30.0, func(): say_then(driver, open_travel_menu))
+	add_interactable(cart, 40.0, open_travel_menu)
+
+
+func open_travel_menu() -> void:
+	open_menu("Carriage: where to?", _fill_travel)
+
+
+func _fill_travel(m: PanelContainer) -> void:
+	m.add_label("Rolf's carriage takes you anywhere on the king's road. The fare is paid up front.", UiStyle.MUTED, 15)
+	for id in DESTINATIONS:
+		if id == region_id:
+			continue
+		var d: Dictionary = DESTINATIONS[id]
+		var fare: int = d.fare
+		var text := "%s  (%s)" % [d.name, "free" if fare == 0 else "%d gold" % fare]
+		m.add_button(text + "\n" + d.hint, _travel_to.bind(id), GameState.gold < fare)
+	m.add_button("Stay here", close_menu)
+
+
+func _travel_to(id: String) -> void:
+	var d: Dictionary = DESTINATIONS[id]
+	if GameState.gold < d.fare:
+		return
+	GameState.gold -= d.fare
+	close_menu()
+	travel(d.scene, "carriage")
+
+
 # ---------- pet ----------
 
 func spawn_pet() -> void:
@@ -711,6 +928,7 @@ func close_shop() -> void:
 
 
 func _build_shop_panel() -> void:
+	shop_layer.layer = 3
 	add_child(shop_layer)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
@@ -743,6 +961,7 @@ func _build_outfit_panel() -> void:
 	box.add_theme_constant_override("separation", 6)
 	var title := Label.new()
 	title.text = "Brann's Armory  (Esc to leave the counter)"
+	outfit_title = title
 	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", UiStyle.BORDER)
 	box.add_child(title)
@@ -789,7 +1008,9 @@ func _add_outfit_button(box: VBoxContainer, key: String, action: Callable) -> vo
 
 
 # Opens the hats-and-armor menu. The Armory calls this directly.
-func open_outfitter() -> void:
+func open_outfitter(shop := "brann") -> void:
+	outfit_shop = shop
+	outfit_title.text = "%s  (Esc to leave the counter)" % SHOP_TITLES.get(shop, "The Armory")
 	Audio.sfx("open")
 	outfit_standalone = true
 	freeze(true)
@@ -836,14 +1057,14 @@ func _refresh_outfits() -> void:
 		var h: Dictionary = Outfits.HATS[id]
 		var owned: bool = id in GameState.hats
 		var b: Button = outfit_buttons["hat:" + id]
-		b.visible = owned or not h.get("unique", false)
+		b.visible = owned or (not h.get("unique", false) and h.get("shop", "brann") == outfit_shop)
 		b.text = _outfit_label(h.name, h.price, "", owned, GameState.hat == id)
 		b.disabled = not owned and GameState.gold < h.price
 	for id in Outfits.ARMOR:
 		var a: Dictionary = Outfits.ARMOR[id]
 		var owned: bool = id in GameState.armors
 		var b: Button = outfit_buttons["armor:" + id]
-		b.visible = owned or not a.get("unique", false)
+		b.visible = owned or (not a.get("unique", false) and a.get("shop", "brann") == outfit_shop)
 		b.text = _outfit_label(a.name, a.price, "  (Def +%d)" % a.def, owned, GameState.armor == id)
 		b.disabled = not owned and GameState.gold < a.price
 	(outfit_buttons["back"] as Button).text = "Leave the counter"

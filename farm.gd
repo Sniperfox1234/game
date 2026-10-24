@@ -26,7 +26,7 @@ var campfire_glow: PointLight2D
 
 
 func _ready() -> void:
-	begin(TOWN)
+	begin(TOWN, true)
 	_build_ground()
 	build_forest(EAST_GAP)
 	var rows: Array = Houses.tier_data(GameState.house_tier).rows
@@ -57,6 +57,10 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0 and args[0].begins_with("shot="):
 		_screenshot_and_quit(args[0].trim_prefix("shot="))
+
+
+func ambient_mode() -> String:
+	return "fireflies" if _is_night() else "leaves"
 
 
 func music_for() -> String:

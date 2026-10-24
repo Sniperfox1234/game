@@ -2,6 +2,7 @@ extends RefCounted
 # Procedural pixel art in the same style as the Kenney tiles: a 1px dark outline, a small fixed
 # palette, and two or three tones per surface. Textures are built once and cached.
 
+const SmoothTexture := preload("res://smooth_texture.gd")
 const OUT := Color("2e2233")
 const STONE_L := Color("d4dae4")
 const STONE_M := Color("a9b3c4")
@@ -76,8 +77,8 @@ static func ellipse(img: Image, cx: float, cy: float, rx: float, ry: float, c: C
 				put(img, x, y, c)
 
 
-static func tex(img: Image) -> ImageTexture:
-	return ImageTexture.create_from_image(img)
+static func tex(img: Image) -> Texture2D:
+	return SmoothTexture.from_image(img)
 
 
 # ---------- fountain ----------
@@ -641,17 +642,32 @@ static func rune_circle(rx: int, ry: int) -> Texture2D:
 	return _cache[key]
 
 
+# body, light, dark, lock colours, and the glow colour, for each look of treasure chest.
+const CHEST_STYLES := {
+	"royal": [Color("5b3fa0"), Color("7d5cc9"), Color("3d2870"), Color("5de08a"), Color(1.0, 0.85, 0.4)],
+	"frost": [Color("3f78c0"), Color("7db8f0"), Color("264f8a"), Color("c8f4ff"), Color(0.6, 0.9, 1.0)],
+	"sand": [Color("c9a24a"), Color("f0cf7a"), Color("8a6a28"), Color("3fd0c0"), Color(1.0, 0.8, 0.35)],
+	"sea": [Color("6b4423"), Color("8a5a2b"), Color("3e2713"), Color("e8c872"), Color(0.5, 0.85, 1.0)],
+	"bog": [Color("3e6b3a"), Color("5f9a50"), Color("24421f"), Color("c06bff"), Color(0.6, 1.0, 0.5)],
+}
+
+
+static func chest_glow(style: String) -> Color:
+	return CHEST_STYLES.get(style, CHEST_STYLES["royal"])[4]
+
+
 # The King Slime's treasure chest: purple with gold bands and a slime-green lock. Origin is the
 # bottom-centre; 28x26. When open the lid is propped up and the inside shines.
-static func royal_chest(open: bool, frost := false) -> Texture2D:
-	var key := "royal_%s_%s" % [open, frost]
+static func royal_chest(open: bool, style := "royal") -> Texture2D:
+	var key := "royal_%s_%s" % [open, style]
 	if _cache.has(key):
 		return _cache[key]
 	var img := canvas(28, 26)
-	var purple := Color("3f78c0") if frost else Color("5b3fa0")
-	var purple_l := Color("7db8f0") if frost else Color("7d5cc9")
-	var purple_d := Color("264f8a") if frost else Color("3d2870")
-	var green := Color("c8f4ff") if frost else Color("5de08a")
+	var pal: Array = CHEST_STYLES.get(style, CHEST_STYLES["royal"])
+	var purple: Color = pal[0]
+	var purple_l: Color = pal[1]
+	var purple_d: Color = pal[2]
+	var green: Color = pal[3]
 	ellipse(img, 14, 24, 12, 2, Color(0, 0, 0, 0.3))
 	# Body.
 	rect(img, 2, 12, 24, 12, OUT)
@@ -1377,3 +1393,147 @@ static func ice_floor(tw: int, th: int) -> Texture2D:
 		ellipse(img, cx - 1, cy - 1, 2.5, 1.2, Color.WHITE)
 	_cache[key] = tex(img)
 	return _cache[key]
+
+
+# ---------- soft lighting helpers ----------
+
+# A round, blurry blob used for shadows: dark in the middle, fading to nothing at the edge.
+static func soft_shadow() -> Texture2D:
+	if _cache.has("soft_shadow"):
+		return _cache["soft_shadow"]
+	var g := Gradient.new()
+	g.colors = PackedColorArray([Color(0, 0, 0, 0.85), Color(0, 0, 0, 0.55), Color(0, 0, 0, 0.0)])
+	g.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+	var t := GradientTexture2D.new()
+	t.gradient = g
+	t.width = 64
+	t.height = 64
+	t.fill = GradientTexture2D.FILL_RADIAL
+	t.fill_from = Vector2(0.5, 0.5)
+	t.fill_to = Vector2(1.0, 0.5)
+	_cache["soft_shadow"] = t
+	return t
+
+
+# A small soft white dot for particles (leaves, snow, fireflies, dust).
+static func soft_dot() -> Texture2D:
+	if _cache.has("soft_dot"):
+		return _cache["soft_dot"]
+	var g := Gradient.new()
+	g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0.7), Color(1, 1, 1, 0.0)])
+	g.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
+	var t := GradientTexture2D.new()
+	t.gradient = g
+	t.width = 8
+	t.height = 8
+	t.fill = GradientTexture2D.FILL_RADIAL
+	t.fill_from = Vector2(0.5, 0.5)
+	t.fill_to = Vector2(1.0, 0.5)
+	_cache["soft_dot"] = t
+	return t
+
+
+# ---------- more dungeon floors ----------
+
+# Sandstone blocks for tombs. Origin is the top-left.
+static func sandstone_floor(tw: int, th: int) -> Texture2D:
+	var key := "sandstone_%d_%d" % [tw, th]
+	if _cache.has(key):
+		return _cache[key]
+	var img := canvas(tw * 16, th * 16)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 505
+	var tones := [Color("c9a86a"), Color("bf9c5e"), Color("d2b377"), Color("b8975a")]
+	for ty in th:
+		for tx in tw:
+			var base: Color = tones[rng.randi() % tones.size()]
+			rect(img, tx * 16, ty * 16, 16, 16, base)
+			rect(img, tx * 16, ty * 16, 16, 1, base.lightened(0.14))
+			rect(img, tx * 16, ty * 16, 1, 16, base.lightened(0.08))
+			rect(img, tx * 16, ty * 16 + 15, 16, 1, base.darkened(0.25))
+			rect(img, tx * 16 + 15, ty * 16, 1, 16, base.darkened(0.22))
+			for i in 5:
+				put(img, tx * 16 + rng.randi_range(2, 13), ty * 16 + rng.randi_range(2, 13), base.darkened(0.12) if rng.randf() < 0.5 else base.lightened(0.1))
+	# Drifts of sand blown across the floor.
+	for d in int(tw * th / 5.0):
+		ellipse(img, rng.randf_range(0, tw * 16), rng.randf_range(0, th * 16), rng.randf_range(4, 9), rng.randf_range(2, 4), Color(0.93, 0.82, 0.55, 0.55))
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+# Dark, wet mud with puddles. Origin is the top-left.
+static func mud_floor(tw: int, th: int) -> Texture2D:
+	var key := "mud_%d_%d" % [tw, th]
+	if _cache.has(key):
+		return _cache[key]
+	var img := canvas(tw * 16, th * 16)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 606
+	for ty in th:
+		for tx in tw:
+			var base := Color("3a3320") if (tx + ty) % 2 == 0 else Color("42392a")
+			rect(img, tx * 16, ty * 16, 16, 16, base)
+			for i in 7:
+				put(img, tx * 16 + rng.randi_range(0, 15), ty * 16 + rng.randi_range(0, 15), base.lightened(0.12) if rng.randf() < 0.5 else base.darkened(0.2))
+	for d in int(tw * th / 4.0):
+		var cx := rng.randf_range(0, tw * 16)
+		var cy := rng.randf_range(0, th * 16)
+		ellipse(img, cx, cy, rng.randf_range(4, 10), rng.randf_range(2.5, 5), Color("27301f"))
+		ellipse(img, cx - 1, cy - 1, 2.4, 1.2, Color("5c7050"))
+	_cache[key] = tex(img)
+	return _cache[key]
+
+
+# ---------- travel ----------
+
+# A horse and covered wagon. Origin is the bottom-centre of the wagon; 76x40.
+static func carriage() -> Texture2D:
+	if _cache.has("carriage"):
+		return _cache["carriage"]
+	var img := canvas(76, 40)
+	ellipse(img, 38, 37, 34, 3, Color(0, 0, 0, 0.3))
+	var coat := Color("8a5a2b")
+	var coat_l := Color("a8743b")
+	var coat_d := Color("5a3b1e")
+	# Horse: legs, body, neck, head and mane.
+	for lx in [6, 10, 18, 22]:
+		rect(img, lx, 24, 3, 12, OUT)
+		rect(img, lx + 1, 24, 1, 11, coat_d)
+	ellipse(img, 15, 22, 12, 7, OUT)
+	ellipse(img, 15, 22, 11, 6, coat)
+	ellipse(img, 13, 20, 7, 3.5, coat_l)
+	rect(img, 22, 12, 6, 12, OUT)
+	rect(img, 23, 13, 4, 11, coat)
+	ellipse(img, 28, 12, 6, 4.5, OUT)
+	ellipse(img, 28, 12, 5, 3.6, coat)
+	put(img, 30, 11, OUT)
+	rect(img, 22, 11, 3, 9, coat_d)
+	rect(img, 2, 18, 4, 3, coat_d)
+	rect(img, 0, 20, 3, 8, coat_d)
+	# Harness to the wagon.
+	rect(img, 27, 24, 12, 2, OUT)
+	# Wagon: box, covered hoop, wheels.
+	rect(img, 38, 20, 34, 12, OUT)
+	rect(img, 39, 21, 32, 10, WOOD_M)
+	rect(img, 39, 21, 32, 2, WOOD_L)
+	rect(img, 39, 29, 32, 2, WOOD_D)
+	ellipse(img, 55, 20, 17, 13, OUT)
+	ellipse(img, 55, 20, 16, 12, Color("efe6cc"))
+	ellipse(img, 55, 24, 16, 8, Color("efe6cc"))
+	rect(img, 38, 20, 34, 12, OUT)
+	rect(img, 39, 21, 32, 10, WOOD_M)
+	rect(img, 39, 21, 32, 2, WOOD_L)
+	for rx in [44, 55, 66]:
+		rect(img, rx, 8, 1, 13, Color("c8bd9c"))
+	rect(img, 41, 9, 28, 1, Color("f8f1db"))
+	rect(img, 54, 14, 3, 4, RED)
+	for cx in [46, 66]:
+		ellipse(img, cx, 33, 6, 6, OUT)
+		ellipse(img, cx, 33, 5, 5, WOOD_L)
+		ellipse(img, cx, 33, 2, 2, OUT)
+		for a in 4:
+			var ang := PI * a / 4.0
+			for k in range(-4, 5):
+				put(img, cx + roundi(cos(ang) * k), 33 + roundi(sin(ang) * k), WOOD_D)
+	_cache["carriage"] = tex(img)
+	return _cache["carriage"]

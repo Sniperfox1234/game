@@ -1,13 +1,117 @@
 extends RefCounted
 # Quest data, quest state helpers, and the dialogue each NPC gives for them.
 # State lives in GameState.quests: id -> {"state": "active" | "done", "progress": int}.
-# A quest's "track" is either "item:<GameState var>" (hand in items) or "kill:<enemy kind>".
+# A quest's "track" is either "item:<GameState var>" (hand in items), "have:<GameState var>" (reach a value, nothing is taken)
+# or "kill:<enemy kind>".
 # "kill:raider" counts monsters that attack at night.
 # "event:<name>" quests finish when the game reports that event (a fish caught, a gallery score...).
 
-const ORDER := ["crops", "shrooms", "fish", "raiders", "slimes", "goblins", "boss", "picnic", "bats", "bigcatch", "gallery20", "firemagic", "chef", "cold", "titan"]
+# The flag set when each boss is first defeated.
+const BOSS_FLAGS := {
+	"king": "boss_defeated", "titan": "titan_defeated", "pharaoh": "pharaoh_defeated",
+	"blackjaw": "blackjaw_defeated", "morwen": "morwen_defeated",
+}
+
+const ORDER := ["crops", "shrooms", "fish", "raiders", "slimes", "goblins", "boss", "picnic", "bats", "bigcatch", "gallery20", "firemagic", "chef", "cold", "titan",
+	"knighting", "ogres", "courier_d", "courier_h", "pharaoh_q", "blackjaw_q", "morwen_q", "hero"]
 
 const DEFS := {
+	"knighting": {
+		"title": "Prove Yourself", "giver": "aldric", "needs": "", "goal": 6, "unit": "hero level", "track": "have:level",
+		"reward": {"gold": 200, "potions": 2},
+		"offer": [
+			"Another hero comes to Highgarden. Brave, no doubt. But the Crown does not knight on bravery alone.",
+			"Reach level 6 and return. Then we shall speak of real duties.",
+		],
+		"remind": "You are not yet strong enough. Reach level 6, then come back.",
+		"thanks": [
+			"You carry yourself like a knight now. Highgarden will remember you.",
+		],
+	},
+	"ogres": {
+		"title": "The Ogre Menace", "giver": "gareth", "needs": "knighting", "goal": 5, "unit": "ogres", "track": "kill:ogre",
+		"reward": {"gold": 300, "damage": 1},
+		"offer": [
+			"Hail, hero. I am Sir Gareth, Captain of the Guard. Ogres have been lumbering up from the Mossbrook caves.",
+			"Slay 5 of them. They hit hard but move slowly, so strike and step back.",
+		],
+		"remind": "{n} more ogres. Look on cave floor 2.",
+		"thanks": [
+			"Five ogres felled! The Crown owes you, hero.",
+		],
+	},
+	"courier_d": {
+		"title": "The Desert Dispatch", "giver": "wilm", "needs": "knighting", "goal": 1, "unit": "desert visited", "track": "event:visit_desert",
+		"reward": {"gold": 200, "potions": 1},
+		"offer": [
+			"I am Herald Wilm. The Crown needs eyes in Sunscar Desert. A scholar is stranded there with a message for His Majesty.",
+			"Take Rolf's carriage to the desert. Just arriving will be enough. I will count it as delivered.",
+		],
+		"remind": "Take the carriage to Sunscar Desert and look around.",
+		"thanks": [
+			"You went and returned! The desert is as dangerous as they say. Thank you.",
+		],
+	},
+	"courier_h": {
+		"title": "The Harbour Letter", "giver": "wilm", "needs": "courier_d", "goal": 1, "unit": "harbor visited", "track": "event:visit_harbor",
+		"reward": {"gold": 250, "potions": 2},
+		"offer": [
+			"Another errand. A harbourmaster in Port Saltmere has sent urgent word about pirates.",
+			"Travel there by carriage and see for yourself. Then return.",
+		],
+		"remind": "Take the carriage to Port Saltmere.",
+		"thanks": [
+			"Pirates in the cove, as feared. The King will want to hear this.",
+		],
+	},
+	"pharaoh_q": {
+		"title": "Wake of the Pharaoh", "giver": "idris", "needs": "", "goal": 1, "unit": "Pharaoh", "track": "kill:pharaoh",
+		"reward": {"gold": 600, "max_hp": 4},
+		"offer": [
+			"The tomb below the pyramid has opened. The Pharaoh walks again, bound in gold and old rage.",
+			"Slay him in his sanctum. Scarabs and mummies guard the way, and his curse slows whoever it strikes.",
+		],
+		"remind": "The Pharaoh still waits in the lowest chamber of the pyramid.",
+		"thanks": [
+			"The sands are quiet at last. You have done what no one dared.",
+		],
+	},
+	"blackjaw_q": {
+		"title": "Blackjaw's Bounty", "giver": "harbourmaster", "needs": "", "goal": 1, "unit": "Captain Blackjaw", "track": "kill:blackjaw",
+		"reward": {"gold": 700, "max_hp": 4},
+		"offer": [
+			"Captain Blackjaw and his crew have terrorised Port Saltmere for years.",
+			"Sail, er, walk into Smugglers' Cove and bring him down. Beware his charge and the cannoneers!",
+		],
+		"remind": "Blackjaw is still at large, in the lowest part of Smugglers' Cove.",
+		"thanks": [
+			"Blackjaw is finished! The docks are safe. Here is the bounty.",
+		],
+	},
+	"morwen_q": {
+		"title": "Morwen's End", "giver": "elda", "needs": "", "goal": 1, "unit": "Witch Morwen", "track": "kill:morwen",
+		"reward": {"gold": 800, "max_hp": 5},
+		"offer": [
+			"Morwen was once a healer like me. The marsh twisted her. Her cauldron poisons every pool for miles.",
+			"Defeat her in the Rotting Bog. Stay out of the green sludge and carry antidotes!",
+		],
+		"remind": "Morwen is still brewing in the depths of the Rotting Bog.",
+		"thanks": [
+			"Hee hee, the marsh is breathing again. Thank you, dear.",
+		],
+	},
+	"hero": {
+		"title": "Hero of the Realm", "giver": "aldric", "needs": "morwen_q", "goal": 12, "unit": "hero level", "track": "have:level",
+		"reward": {"gold": 2000, "potions": 5, "max_hp": 6},
+		"offer": [
+			"You have laid low a Pharaoh, a pirate and a witch. The realm has never had a champion like you.",
+			"Reach level 12 and return. I shall name you Hero of the Realm before the entire court.",
+		],
+		"remind": "Reach level 12 and I will name you Hero of the Realm.",
+		"thanks": [
+			"Kneel, and rise as Hero of the Realm! Let the whole kingdom hear it.",
+		],
+	},
 	"cold": {
 		"title": "Cold Snap", "giver": "captain", "needs": "boss", "goal": 6, "unit": "ice slimes", "track": "kill:frostslime",
 		"reward": {"gold": 150, "potions": 2},
@@ -167,6 +271,37 @@ const DEFS := {
 }
 
 const IDLE := {
+	"rolf": ["Where to, hero? The king's road runs from Highgarden to the desert, the sea and the swamp.", "Thirty gold a trip to the far lands. Worth every coin!"],
+	"aldric": ["Highgarden is at your service, hero. Visit the armoury, the banquet hall, or take a stroll in the gardens."],
+	"wilm": ["Hear ye! The king receives all heroes in the throne room."],
+	"gareth": ["Keep your blade sharp. The Crown's enemies are everywhere."],
+	"squire": ["I'm training to be a knight. Sir Gareth says I swing like a wet noodle!"],
+	"guard1": ["Halt! ...Oh, it's you. Carry on. Highgarden is safe thanks to heroes like you."],
+	"guard2": ["The moat has never been crossed by an enemy. Not once!"],
+	"cecile": ["The gardens are lovely at this hour. Do admire the roses."],
+	"pemberton": ["I am Lord Pemberton. I have no job. I am very busy."],
+	"ivo": ["The roses need weeding, the hedges need trimming, and the fountain needs a good scrub."],
+	"jingles": ["Why did the slime cross the road? To get to the other slime! Hee hee!"],
+	"dob": ["The horses are restless. They can smell the swamp from here."],
+	"vera": ["Poison, burns, a nasty cough. I have a remedy for everything. For a price."],
+	"bastien": ["The King's Feast heals you fully and fills you with rage. Eat, hero, eat!"],
+	"royce": ["Only the finest steel leaves the Royal Armoury."],
+	"counsellor": ["His Majesty listens to those who have proven themselves. Prove yourself."],
+	"lord_a": ["Pass the pheasant, would you?"],
+	"lady_a": ["The banquet is simply delightful."],
+	"jester_b": ["Knock knock! Who's there? A very hungry jester!"],
+	"zahra": ["Welcome, traveller! The tomb's treasures will make you rich, if you survive."],
+	"idris": ["The pyramid shifts with the wind. Even I cannot find the door twice."],
+	"pell": ["I have catalogued four hundred hieroglyphs. The Pharaoh is on all of them."],
+	"camelboy": ["My camel's name is Sir Spits-a-Lot."],
+	"salty": ["Every sailor needs a good coat and a better harpoon."],
+	"marta": ["The sea's full of fish. A silver rod helps, and a quick hand more."],
+	"harbourmaster": ["Mind the cannoneers. They fire in threes."],
+	"sailor1": ["I've sailed every sea. None as rough as Blackjaw's temper."],
+	"sailor2": ["I just swab the deck. Don't tell the captain I said that."],
+	"elda": ["An antidote a day keeps the poison at bay. Hee hee!"],
+	"trapper": ["The mud sucks at your boots. The wisps suck at your health."],
+	"frogboy": ["Ribbit! I found a really big frog. Do you want to see?"],
 	"rosa": ["Thank you again, {name}. Mossbrook is lucky to have you."],
 	"gus": ["The cave is quiet now. Thanks to you."],
 	"pip": [
@@ -314,7 +449,7 @@ static func _track(id: String) -> PackedStringArray:
 
 static func progress(id: String) -> int:
 	var tr := _track(id)
-	if tr[0] == "item" and state(id) == "active":
+	if (tr[0] == "item" or tr[0] == "have") and state(id) == "active":
 		return mini(int(GameState.get(tr[1])), DEFS[id].goal)
 	return int(GameState.quests.get(id, {}).get("progress", 0))
 
@@ -372,10 +507,10 @@ static func talk(npc: String) -> Dictionary:
 
 static func accept(id: String) -> String:
 	var start := 0
-	if id == "boss" and GameState.flags.get("boss_defeated", false):
-		start = 1
-	if id == "titan" and GameState.flags.get("titan_defeated", false):
-		start = 1
+	# A kill quest for a boss you have already beaten starts out complete.
+	var tr := _track(id)
+	if tr[0] == "kill" and BOSS_FLAGS.has(tr[1]) and GameState.flags.get(BOSS_FLAGS[tr[1]], false):
+		start = DEFS[id].goal
 	GameState.quests[id] = {"state": "active", "progress": start}
 	Audio.sfx("quest_accept")
 	return "New quest: %s" % DEFS[id].title
@@ -418,10 +553,8 @@ static func _reward_text(r: Dictionary) -> String:
 
 # Call on every enemy kill. Returns a status line for the last quest it advanced, or "".
 static func on_kill(kind: String, raider: bool) -> String:
-	if kind == "king":
-		GameState.flags["boss_defeated"] = true
-	if kind == "titan":
-		GameState.flags["titan_defeated"] = true
+	if BOSS_FLAGS.has(kind):
+		GameState.flags[BOSS_FLAGS[kind]] = true
 	var msg := ""
 	for id in ORDER:
 		var tr := _track(id)

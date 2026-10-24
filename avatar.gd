@@ -1,6 +1,7 @@
 extends Node2D
 # 16x16 pixel hero in the same style as the Kenney tiles. Origin is at the feet.
 # O outline, S skin, H hair, T shirt, P pants, E eyes.
+# The hero is painted into a tiny image and drawn through SmoothTexture, like all the other art.
 
 const GRID := [
 	"................",
@@ -25,6 +26,12 @@ const OUTLINE := Color("2e2233")
 const PANTS := Color("3b4a7a")
 const STEP_TIME := 0.16
 const Outfits := preload("res://outfits.gd")
+const SmoothTexture := preload("res://smooth_texture.gd")
+const IMG_W := 24
+const IMG_H := 28
+const ORIGIN := Vector2i(12, 22) # where the feet sit in the image
+
+static var _cache := {}
 
 # Set by the player each frame; the sprite only redraws when something visible changes.
 var walking := false
@@ -65,6 +72,30 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	var spark := int(Time.get_ticks_msec() / 200) % 6 if GameState.hat == "slime_crown" else -1
+	var key := "%s|%s|%s|%s|%s|%s|%d|%s|%d" % [
+		GameState.skin_color.to_html(false), GameState.hair_color.to_html(false), GameState.shirt_color.to_html(false),
+		GameState.armor, GameState.hat, facing_up, _step if walking else -1, walking, spark]
+	if not _cache.has(key):
+		if _cache.size() > 120:
+			_cache.clear()
+		_cache[key] = SmoothTexture.from_image(_render(spark))
+	draw_texture(_cache[key], Vector2(-ORIGIN.x, -ORIGIN.y))
+
+
+func _put(img: Image, x: int, y: int, c: Color) -> void:
+	var px := x + ORIGIN.x
+	var py := y + ORIGIN.y
+	if px < 0 or py < 0 or px >= IMG_W or py >= IMG_H:
+		return
+	if c.a < 1.0:
+		var below := img.get_pixel(px, py)
+		c = below.blend(c) if below.a > 0.0 else c
+	img.set_pixel(px, py, c)
+
+
+func _render(spark: int) -> Image:
+	var img := Image.create_empty(IMG_W, IMG_H, false, Image.FORMAT_RGBA8)
 	var palette := {
 		"O": OUTLINE,
 		"E": OUTLINE,
@@ -79,7 +110,6 @@ func _draw() -> void:
 		palette["T"] = gear.torso
 		palette["P"] = gear.legs
 		palette["R"] = gear.trim
-	draw_rect(Rect2(-6, -1, 12, 2), Color(0, 0, 0, 0.25))
 	# Step cycle: 0 stand, 1 left foot forward, 2 stand, 3 right foot forward. Body bobs on 1 and 3.
 	var bob := -1 if walking and _step % 2 == 1 else 0
 	for y in GRID.size():
@@ -94,18 +124,17 @@ func _draw() -> void:
 			# Armor trim: shoulders and gloves.
 			if armored and ((y == 11 and (x == 4 or x == 11)) or (y == 12 and key == "S")):
 				key = "R"
-			var yy := y
 			var xx := x
 			if y >= 14 and walking and _step % 2 == 1:
 				# Shift the feet to fake a stride, alternating sides.
 				xx += -1 if (x < 8) == (_step == 1) else 1
 				xx = clampi(xx, 4, 11)
-			var py: float = yy - 16 + (bob if y < 14 else 0)
-			draw_rect(Rect2(xx - 8, py, 1, 1), palette[key])
-	_draw_hat(bob)
+			_put(img, xx - 8, y - 16 + (bob if y < 14 else 0), palette[key])
+	_draw_hat(img, bob, spark)
+	return img
 
 
-func _draw_hat(bob: int) -> void:
+func _draw_hat(img: Image, bob: int, spark: int) -> void:
 	if GameState.hat == "":
 		return
 	var h: Dictionary = Outfits.HATS[GameState.hat]
@@ -117,13 +146,14 @@ func _draw_hat(bob: int) -> void:
 			if c == ".":
 				continue
 			var col: Color = OUTLINE if c == "O" else (h.a if c == "A" else h.b)
-			draw_rect(Rect2(x - 8, h.y0 + i - 16 + bob, 1, 1), col)
-	if GameState.hat == "slime_crown":
+			_put(img, x - 8, h.y0 + i - 16 + bob, col)
+	if spark >= 0:
 		# Twinkling sparkles around the crown.
-		var spots := [Vector2(3, -4), Vector2(12, -3), Vector2(1, 1), Vector2(14, 0), Vector2(8, -6), Vector2(5, -2)]
-		var k := int(Time.get_ticks_msec() / 200)
+		var spots := [Vector2i(3, -4), Vector2i(12, -3), Vector2i(1, 1), Vector2i(14, 0), Vector2i(8, -6), Vector2i(5, -2)]
 		for i in 2:
-			var p: Vector2 = spots[(k + i * 3) % spots.size()]
-			draw_rect(Rect2(p.x - 8, p.y - 16 + bob, 1, 1), Color("fff6d0"))
-			draw_rect(Rect2(p.x - 9, p.y - 16 + bob, 3, 1), Color("fff6d0", 0.5))
-			draw_rect(Rect2(p.x - 8, p.y - 17 + bob, 1, 3), Color("fff6d0", 0.5))
+			var p: Vector2i = spots[(spark + i * 3) % spots.size()]
+			_put(img, p.x - 8, p.y - 16 + bob, Color("fff6d0"))
+			_put(img, p.x - 9, p.y - 16 + bob, Color("fff6d0", 0.5))
+			_put(img, p.x - 7, p.y - 16 + bob, Color("fff6d0", 0.5))
+			_put(img, p.x - 8, p.y - 17 + bob, Color("fff6d0", 0.5))
+			_put(img, p.x - 8, p.y - 15 + bob, Color("fff6d0", 0.5))

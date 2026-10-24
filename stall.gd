@@ -2,6 +2,10 @@ extends Node2D
 # Market stall drawn from rectangles. Origin is the bottom-centre.
 
 
+func _ready() -> void:
+	load("res://soft_shadow.gd").attach(self, Vector2(36, 9), Vector2(3, -1), 0.8)
+
+
 func _draw() -> void:
 	draw_rect(Rect2(-13, -10, 26, 10), Color("8a6240"))
 	draw_rect(Rect2(-13, -10, 26, 2), Color("6b4a2f"))

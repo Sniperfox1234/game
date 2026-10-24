@@ -3,6 +3,7 @@ extends CharacterBody2D
 signal died
 
 const FireballScript := preload("res://fireball.gd")
+const SoftShadow := preload("res://soft_shadow.gd")
 
 const ATTACK_TIME := 0.18
 const ATTACK_COOLDOWN := 0.35
@@ -27,12 +28,15 @@ var dash_dir := Vector2.ZERO
 var zaps: Array = [] # [from, to, time left] lightning bolts drawn after a Thunder Edge hit
 var _tint := Color.WHITE
 var slow_time := 0.0
+var poison_time := 0.0
+var _poison_tick := 0.0
 
 @onready var avatar: Node2D = $Avatar
 
 
 func _ready() -> void:
 	add_to_group("player")
+	SoftShadow.attach(self, Vector2(14, 5), Vector2(0, -1))
 
 
 func _physics_process(delta: float) -> void:
@@ -64,6 +68,15 @@ func _physics_process(delta: float) -> void:
 	avatar.set_motion(direction != Vector2.ZERO, facing.y < 0.0)
 
 	slow_time = maxf(slow_time - delta, 0.0)
+	if poison_time > 0.0:
+		poison_time -= delta
+		_poison_tick -= delta
+		if _poison_tick <= 0.0:
+			_poison_tick = 1.0
+			# Poison hurts but never finishes you off by itself.
+			GameState.hp = maxi(GameState.hp - 1, 1)
+			Audio.sfx("hurt", 0.1, -8.0)
+	GameState.poison_time = poison_time
 	cooldown = maxf(cooldown - delta, 0.0)
 	spell_cooldown = maxf(spell_cooldown - delta, 0.0)
 	if attack_left > 0.0:
@@ -82,6 +95,8 @@ func _update_look(delta: float) -> void:
 	var want := Color(1.0, 0.65, 0.6) if GameState.buff_rage > 0.0 else (Color(0.7, 1.0, 1.0) if GameState.buff_swift > 0.0 else Color.WHITE)
 	if slow_time > 0.0:
 		want = Color(0.65, 0.8, 1.3)
+	if poison_time > 0.0:
+		want = Color(0.7, 1.15, 0.65)
 	var alpha := 1.0
 	if invuln > 0.0:
 		alpha = 0.4 if int(invuln * 20.0) % 2 == 0 else 1.0
@@ -123,6 +138,8 @@ func _apply_effect(effect: String, e: Node, dmg: int) -> void:
 	match effect:
 		"burn":
 			e.call("apply_status", "burn")
+		"poison":
+			e.call("apply_status", "poison")
 		"freeze":
 			e.call("apply_status", "freeze")
 		"shock":
@@ -161,6 +178,17 @@ func cast_fireball() -> bool:
 		f.position = position + Vector2(0, -7) + facing * 8.0
 		get_parent().add_child(f)
 	return true
+
+
+# Poison drains 1 HP a second for a few seconds (healing potions and the clinic cure it).
+func apply_poison(seconds: float) -> void:
+	if poison_time <= 0.0:
+		_poison_tick = 1.0
+	poison_time = maxf(poison_time, seconds)
+
+
+func cure_poison() -> void:
+	poison_time = 0.0
 
 
 # Frost slows you to about half speed for a couple of seconds.

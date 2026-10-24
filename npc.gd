@@ -6,6 +6,7 @@ const Tiles := preload("res://tiles.gd")
 const Quests := preload("res://quests.gd")
 const DUNGEON := preload("res://assets/dungeon/tiles.png")
 const SPEED := 12.0
+const SoftShadow := preload("res://soft_shadow.gd")
 
 var npc_id := ""
 var display_name := ""
@@ -22,6 +23,7 @@ var _wait := 0.0
 
 
 func _ready() -> void:
+	SoftShadow.attach(self, Vector2(13, 5), Vector2(0, -1))
 	_sprite = Tiles.sprite(DUNGEON, tile, Vector2(-8, -15))
 	_sprite.modulate = tint
 	add_child(_sprite)
@@ -58,7 +60,6 @@ func _wander(delta: float) -> void:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(-5, -1, 10, 2), Color(0, 0, 0, 0.25))
 	if _marker != "":
 		var font := ThemeDB.fallback_font
 		var pos := Vector2(-4, -19 + sin(_t * 4.0) * 1.5)

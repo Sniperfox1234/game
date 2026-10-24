@@ -10,6 +10,7 @@ var _t := 0.0
 
 
 func _ready() -> void:
+	load("res://soft_shadow.gd").attach(self, Vector2(66, 26), Vector2(3, 8), 0.3)
 	_frames = PixelArt.fountain_frames()
 	_sprite.texture = _frames[0]
 	_sprite.centered = false

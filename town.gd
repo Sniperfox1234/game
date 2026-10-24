@@ -26,12 +26,14 @@ var cave_pos := Vector2.ZERO
 var doors := {} # shop id -> door position
 var npcs := {} # id -> npc node
 var gallery: CanvasLayer
+const CARRIAGE_POS := Vector2(76, 254)
 
 
 func _ready() -> void:
 	map_w = 56
 	map_h = 36
-	begin(TOWN)
+	region_id = "town"
+	begin(TOWN, true)
 	_build_ground()
 	build_forest(FARM_GAP)
 	_build_buildings()
@@ -42,9 +44,13 @@ func _ready() -> void:
 	_build_cave()
 	_build_npcs()
 	add_pond(Rect2i(40, 25, 9, 6))
+	add_carriage(CARRIAGE_POS)
+	add_label("Carriage to far lands", CARRIAGE_POS + Vector2(0, 40), Color("ffd98a"))
 
 	var spawn := Vector2(28, 17 * 16 + 8)
-	if GameState.next_spawn == "cave":
+	if GameState.next_spawn == "carriage":
+		spawn = CARRIAGE_POS + Vector2(8, 34)
+	elif GameState.next_spawn == "cave":
 		spawn = cave_pos + Vector2(0, 14)
 	elif GameState.next_spawn in doors:
 		spawn = doors[GameState.next_spawn] + Vector2(0, 22)
@@ -59,6 +65,10 @@ func _ready() -> void:
 	if not GameState.flags.get("seen_town", false):
 		GameState.flags["seen_town"] = true
 		hud.toast("Welcome to Mossbrook! Talk to people with Space.")
+
+
+func ambient_mode() -> String:
+	return "fireflies" if _is_night() else "leaves"
 
 
 func music_for() -> String:
@@ -84,6 +94,7 @@ func _area_process(_delta: float) -> void:
 				return
 	if absf(p.x - cave_pos.x) < 9.0 and p.y < cave_pos.y - 6.0 and p.y > cave_pos.y - 24.0:
 		GameState.cave_floor = 1
+		GameState.dungeon = "cave"
 		travel(CAVE_SCENE, "town")
 
 

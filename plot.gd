@@ -63,9 +63,9 @@ func _draw() -> void:
 	var spot := Rect2(-8, -8, 16, 16)
 	if state == State.GROWING:
 		var idx := SPROUT if age == 0 else BUSH
-		draw_texture_rect_region(TOWN, spot, Tiles.region(idx))
+		draw_texture_rect_region(Tiles.smooth(TOWN), spot, Tiles.region(idx))
 	elif state == State.RIPE:
-		draw_texture_rect_region(TOWN, spot, Tiles.region(BUSH))
+		draw_texture_rect_region(Tiles.smooth(TOWN), spot, Tiles.region(BUSH))
 		for p in [Vector2(-3, 0), Vector2(3, -2), Vector2(0, 3)]:
 			draw_circle(p, 2.0, Color("ff7043"))
 	if highlighted:

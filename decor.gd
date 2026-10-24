@@ -6,6 +6,7 @@ extends Node2D
 
 const Tiles := preload("res://tiles.gd")
 const PixelArt := preload("res://pixel_art.gd")
+const SoftShadow := preload("res://soft_shadow.gd")
 const DUNGEON := preload("res://assets/dungeon/tiles.png")
 
 var kind := "lamp"
@@ -24,6 +25,7 @@ func _ready() -> void:
 	set_process(false)
 	match kind:
 		"lamp":
+			SoftShadow.attach(self, Vector2(14, 5), Vector2(0, -1), 0.5)
 			var s := Sprite2D.new()
 			s.texture = PixelArt.lamp()
 			s.centered = false
@@ -52,6 +54,7 @@ func _ready() -> void:
 			add_child(_light)
 			set_process(true)
 		"bench":
+			SoftShadow.attach(self, Vector2(28, 7), Vector2(0, -1), 0.3)
 			var s := Sprite2D.new()
 			s.texture = PixelArt.bench()
 			s.centered = false

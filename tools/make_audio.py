@@ -355,6 +355,38 @@ def render_music(name, bpm, bars, chords, scale, bass_oct, seed, lead="square", 
     write_wav(name, out, sr, 0.8)
 
 
+def more_ambience():
+    random.seed(23)
+    sr = SFX_RATE
+    # Ocean waves: a slow swell of smoothed noise with a hiss at the crest.
+    dur = 12.0
+    fade = int(0.6 * sr)
+    raw = noise(dur + 0.6, 0.5, 0, 14)
+    hiss = noise(dur + 0.6, 0.25, 0, 3, hp=True)
+    for i in range(len(raw)):
+        t = i / sr
+        swell = 0.5 + 0.5 * math.sin(2 * math.pi * t / 6.0)
+        crest = max(0.0, math.sin(2 * math.pi * t / 6.0 - 0.8)) ** 3
+        raw[i] = raw[i] * (0.25 + 0.75 * swell) + hiss[i] * crest * 0.6
+    write_wav("amb_waves", crossfaded(raw, fade), sr, 0.5)
+
+    # Swamp: a low hum, slow croaking frogs and a few crickets.
+    dur = 12.0
+    n = int(dur * sr)
+    hum = [0.0] * n
+    for i in range(n):
+        t = i / sr
+        hum[i] = (math.sin(2 * math.pi * 70 * t) * 0.25 + math.sin(2 * math.pi * 105 * t + 1.0) * 0.18) * (0.7 + 0.3 * math.sin(2 * math.pi * t / dur * 2))
+    items = []
+    for t in [1.2, 1.55, 4.4, 4.75, 5.1, 8.1, 8.45, 10.6]:
+        f = random.choice([180, 210, 240])
+        items.append((tone(f, 0.14, "square", 0.22, slide_to=f * 1.5, d=0.1, s=0.3, r=0.03, vib=0.08, sr=sr), t))
+    for t in [2.8, 6.6, 9.3]:
+        for k in range(5):
+            items.append((tone(4200, 0.03, "sine", 0.1, s=0.5, r=0.01, sr=sr), t + k * 0.06))
+    write_wav("amb_swamp", mix(hum, mix_at(items, n), noise(dur, 0.03, 0, 30)), sr, 0.5)
+
+
 def music():
     # Farm: calm, warm C major.
     render_music("mus_farm", 92, 16,
@@ -401,6 +433,46 @@ def music():
                  bell=True, pad=True, echo=0.4, bass_kind="sine", arp_kind="sine", arp_rate=1)
 
 
+def more_music():
+    # Castle: stately D major.
+    render_music("mus_castle", 100, 16,
+                 [("D", ["D", "F#", "A"]), ("A", ["A", "C#", "E"]), ("B", ["B", "D", "F#"]), ("G", ["G", "B", "D"]),
+                  ("D", ["D", "F#", "A"]), ("A", ["A", "C#", "E"]), ("G", ["G", "B", "D"]), ("A", ["A", "C#", "E"]),
+                  ("D", ["D", "F#", "A"]), ("B", ["B", "D", "F#"]), ("G", ["G", "B", "D"]), ("A", ["A", "C#", "E"]),
+                  ("D", ["D", "F#", "A"]), ("G", ["G", "B", "D"]), ("A", ["A", "C#", "E"]), ("D", ["D", "F#", "A"])],
+                 ["D5", "E5", "F#5", "A5", "B5", "D6", "A4", "B4"], 2, 11, lead="square", mel_density=0.7, mel_vol=0.16,
+                 arp_vol=0.08, drums="k...s...", bass_pattern="x.x.")
+    # Desert: a winding scale with a raised second.
+    render_music("mus_desert", 92, 16,
+                 [("A", ["A", "C", "E"]), ("A", ["A", "C", "E"]), ("G#", ["G#", "B", "D#"]), ("A", ["A", "C", "E"]),
+                  ("F", ["F", "A", "C"]), ("E", ["E", "G#", "B"]), ("A", ["A", "C", "E"]), ("E", ["E", "G#", "B"])],
+                 ["A4", "B4", "C5", "D#5", "E5", "F5", "G#5", "A5"], 2, 12, lead="tri", mel_density=0.8, mel_vol=0.22,
+                 arp_vol=0.09, drums="k..sk.s.", bass_pattern="x.xx")
+    # Harbor: a jaunty sea shanty in G.
+    render_music("mus_harbor", 122, 16,
+                 [("G", ["G", "B", "D"]), ("F", ["F", "A", "C"]), ("C", ["C", "E", "G"]), ("G", ["G", "B", "D"]),
+                  ("G", ["G", "B", "D"]), ("F", ["F", "A", "C"]), ("D", ["D", "F#", "A"]), ("G", ["G", "B", "D"])],
+                 ["G4", "A4", "B4", "C5", "D5", "E5", "F5", "G5"], 2, 13, lead="square", mel_density=0.85, mel_vol=0.16,
+                 arp_vol=0.09, drums="k.hsk.hs", bass_pattern="x.x.")
+    # Swamp: slow, sparse and uneasy.
+    render_music("mus_swamp", 62, 12,
+                 [("E", ["E", "G", "B"]), ("C#", ["C#", "E", "G"]), ("F", ["F", "G#", "C"]), ("B", ["B", "D", "F"])],
+                 ["E5", "F5", "G5", "B5", "C6", "D6", "E6", "F6"], 2, 14, mel_density=0.4, mel_vol=0.25, arp_vol=0.05,
+                 bell=True, pad=True, echo=0.5, bass_kind="sine", arp_kind="sine", arp_rate=1, drip=True)
+    # Tomb: dark and echoing.
+    render_music("mus_tomb", 76, 16,
+                 [("D", ["D", "F", "A"]), ("D", ["D", "F", "A"]), ("A#", ["A#", "D", "F"]), ("A", ["A", "C#", "E"]),
+                  ("D", ["D", "F", "A"]), ("G", ["G", "A#", "D"]), ("A#", ["A#", "D", "F"]), ("A", ["A", "C#", "E"])],
+                 ["D5", "E5", "F5", "G5", "A5", "A#5", "C#6", "D6"], 2, 15, lead="tri", mel_density=0.5, mel_vol=0.22,
+                 arp_vol=0.07, pad=True, echo=0.45, bass_kind="saw", arp_rate=1, drip=True)
+    # Pirate cove: a tense shanty in E minor.
+    render_music("mus_cove", 112, 16,
+                 [("E", ["E", "G", "B"]), ("D", ["D", "F#", "A"]), ("C", ["C", "E", "G"]), ("B", ["B", "D#", "F#"]),
+                  ("E", ["E", "G", "B"]), ("A", ["A", "C", "E"]), ("B", ["B", "D#", "F#"]), ("E", ["E", "G", "B"])],
+                 ["E5", "F#5", "G5", "A5", "B5", "C6", "D6", "E6"], 2, 16, lead="square", mel_density=0.85, mel_vol=0.17,
+                 arp_vol=0.09, drums="k.hsk.hs", bass_kind="saw", bass_pattern="x.x.")
+
+
 if __name__ == "__main__":
     what = sys.argv[1] if len(sys.argv) > 1 else "all"
     print("Sound effects:")
@@ -412,3 +484,6 @@ if __name__ == "__main__":
     print("Music:")
     if what in ("all", "music"):
         music()
+    if what in ("all", "more"):
+        more_ambience()
+        more_music()

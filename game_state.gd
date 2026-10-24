@@ -61,9 +61,12 @@ var fish: int:
 var mushrooms := 0
 var potions := 0
 var cave_floor := 1
+var dungeon := "cave" # which dungeon the dungeon scene builds (not saved)
 var meat := 0
 var steak := 0
 var interior := "" # which shop interior to load next (not saved)
+var last_dungeon := "" # the dungeon you just walked out of, so the region puts you at its entrance
+var interior_exit := "" # scene to return to when leaving an interior ("" = the town)
 var level := 1
 var xp := 0
 var wood := 0
@@ -91,6 +94,7 @@ var bard_day := 0
 var buff_rage := 0.0
 var buff_swift := 0.0
 var buff_aegis_time := 0.0
+var poison_time := 0.0 # mirrored from the player so the HUD can show it
 var aegis_hits := 0
 var _mp_acc := 0.0
 var meal := "" # the cooked meal currently making you "well fed"
@@ -165,6 +169,7 @@ func start_new_game() -> void:
 	mushrooms = 0
 	potions = 0
 	cave_floor = 1
+	dungeon = "cave"
 	meat = 0
 	steak = 0
 	level = 1
@@ -451,6 +456,7 @@ func load_game() -> bool:
 	mp = mini(int(d.get("mp", max_mp())), max_mp())
 	next_spawn = ""
 	cave_floor = 1
+	dungeon = "cave"
 	Audio.sync_gold()
 	return true
 

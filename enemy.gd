@@ -7,6 +7,7 @@ signal summon(kind: String, pos: Vector2)
 const Tiles := preload("res://tiles.gd")
 const DUNGEON := preload("res://assets/dungeon/tiles.png")
 const BoltScript := preload("res://bolt.gd")
+const SoftShadow := preload("res://soft_shadow.gd")
 
 # ai: hop (slime), flit (bat), charge (goblin), shoot (mage), float (ghost), walk (ogre), king (boss).
 const KINDS := {
@@ -22,6 +23,31 @@ const KINDS := {
 	"wraith": {"tile": 121, "hp": 6, "speed": 26.0, "radius": 7.0, "contact": 3, "aggro": 180.0, "ai": "wraith", "gold": Vector2i(12, 18), "xp": 15, "tint": Color(0.5, 0.85, 1.4)},
 	"yeti": {"tile": 109, "hp": 24, "speed": 26.0, "radius": 10.0, "contact": 4, "aggro": 120.0, "ai": "walk", "gold": Vector2i(25, 35), "xp": 30, "tint": Color(0.9, 0.97, 1.2), "scale": 1.4},
 	"titan": {"tile": 109, "hp": 90, "speed": 30.0, "radius": 18.0, "contact": 4, "aggro": 240.0, "ai": "titan", "gold": Vector2i(150, 150), "xp": 250, "tint": Color(0.65, 0.88, 1.35), "scale": 2.6},
+	# --- Sunscar desert and the tomb ---
+	"scorpion": {"tile": 122, "hp": 8, "speed": 46.0, "radius": 7.0, "contact": 3, "aggro": 120.0, "ai": "charge", "gold": Vector2i(10, 15), "xp": 14, "tint": Color(1.25, 0.8, 0.4), "contact_effect": "poison"},
+	"sandwisp": {"tile": 121, "hp": 7, "speed": 28.0, "radius": 7.0, "contact": 3, "aggro": 180.0, "ai": "wraith", "gold": Vector2i(12, 18), "xp": 16, "tint": Color(1.35, 1.1, 0.5), "bolt": {"effect": "slow", "speed": 80.0}},
+	"mummy": {"tile": 111, "hp": 22, "speed": 24.0, "radius": 8.0, "contact": 4, "aggro": 120.0, "ai": "walk", "gold": Vector2i(20, 30), "xp": 26, "tint": Color(1.05, 0.98, 0.78), "scale": 1.15},
+	"scarab": {"tile": 123, "hp": 5, "speed": 64.0, "radius": 6.0, "contact": 2, "aggro": 140.0, "ai": "flit", "gold": Vector2i(6, 10), "xp": 9, "tint": Color(1.3, 1.1, 0.5)},
+	"cursed": {"tile": 84, "hp": 10, "speed": 30.0, "radius": 7.0, "contact": 2, "aggro": 160.0, "ai": "shoot", "gold": Vector2i(14, 20), "xp": 20, "tint": Color(1.25, 1.1, 0.6), "bolt": {"effect": "slow", "speed": 90.0}},
+	"pharaoh": {"tile": 110, "hp": 130, "speed": 30.0, "radius": 17.0, "contact": 4, "aggro": 260.0, "ai": "pattern", "gold": Vector2i(220, 220), "xp": 400, "tint": Color(1.3, 1.1, 0.55), "scale": 2.3,
+		"boss": {"attacks": ["slam", "fan", "slam", "fan"], "slam_r": 70.0, "ring_n": 12, "ring_speed": 80.0, "fan_n": 7, "fan_spread": 0.22, "fan_speed": 95.0,
+			"effect": "slow", "dmg": 2, "cd": 3.6, "cd_enraged": 2.6, "summon": ["mummy", "scarab"], "thresholds": [0.66, 0.33]}},
+	# --- Port Saltmere and the pirate cove ---
+	"crab": {"tile": 120, "hp": 11, "speed": 36.0, "radius": 7.0, "contact": 3, "aggro": 110.0, "ai": "charge", "gold": Vector2i(10, 16), "xp": 16, "tint": Color(1.35, 0.6, 0.5)},
+	"pirate": {"tile": 98, "hp": 14, "speed": 40.0, "radius": 7.0, "contact": 3, "aggro": 125.0, "ai": "charge", "gold": Vector2i(18, 28), "xp": 22, "tint": Color(0.85, 0.5, 0.5)},
+	"parrot": {"tile": 124, "hp": 6, "speed": 74.0, "radius": 6.0, "contact": 2, "aggro": 150.0, "ai": "flit", "gold": Vector2i(8, 12), "xp": 12, "tint": Color(0.6, 1.3, 0.6)},
+	"cannoneer": {"tile": 97, "hp": 16, "speed": 26.0, "radius": 8.0, "contact": 3, "aggro": 170.0, "ai": "shoot", "gold": Vector2i(22, 32), "xp": 26, "tint": Color(0.7, 0.7, 0.9), "bolt": {"speed": 60.0, "damage": 2, "fan": 3, "spread": 0.18}},
+	"blackjaw": {"tile": 98, "hp": 150, "speed": 38.0, "radius": 16.0, "contact": 4, "aggro": 260.0, "ai": "pattern", "gold": Vector2i(260, 260), "xp": 450, "tint": Color(0.6, 0.42, 0.5), "scale": 2.2,
+		"boss": {"attacks": ["charge", "fan", "slam", "charge"], "slam_r": 64.0, "ring_n": 10, "ring_speed": 85.0, "fan_n": 5, "fan_spread": 0.28, "fan_speed": 100.0,
+			"effect": "", "dmg": 2, "cd": 3.2, "cd_enraged": 2.3, "charge_speed": 190.0, "summon": ["pirate", "parrot"], "thresholds": [0.6, 0.3]}},
+	# --- Mistmere swamp and the witch's lair ---
+	"bogslime": {"tile": 108, "hp": 10, "speed": 28.0, "radius": 7.0, "contact": 3, "aggro": 100.0, "ai": "hop", "gold": Vector2i(10, 16), "xp": 16, "tint": Color(0.55, 0.8, 0.35), "contact_effect": "poison"},
+	"wisp": {"tile": 121, "hp": 8, "speed": 28.0, "radius": 7.0, "contact": 3, "aggro": 190.0, "ai": "wraith", "gold": Vector2i(14, 20), "xp": 20, "tint": Color(0.6, 1.4, 0.6), "bolt": {"effect": "poison", "speed": 75.0}},
+	"zombie": {"tile": 87, "hp": 26, "speed": 24.0, "radius": 8.0, "contact": 4, "aggro": 110.0, "ai": "walk", "gold": Vector2i(22, 32), "xp": 28, "tint": Color(0.6, 1.0, 0.6), "contact_effect": "poison"},
+	"bogdog": {"tile": 120, "hp": 12, "speed": 52.0, "radius": 7.0, "contact": 3, "aggro": 130.0, "ai": "charge", "gold": Vector2i(14, 20), "xp": 20, "tint": Color(0.5, 0.8, 0.5), "contact_effect": "poison"},
+	"morwen": {"tile": 84, "hp": 140, "speed": 28.0, "radius": 15.0, "contact": 3, "aggro": 260.0, "ai": "pattern", "gold": Vector2i(300, 300), "xp": 500, "tint": Color(0.7, 1.35, 0.75), "scale": 2.3,
+		"boss": {"attacks": ["blink", "pools", "fan", "pools"], "slam_r": 60.0, "ring_n": 10, "ring_speed": 75.0, "fan_n": 5, "fan_spread": 0.3, "fan_speed": 85.0,
+			"effect": "poison", "dmg": 2, "cd": 3.0, "cd_enraged": 2.2, "summon": ["wisp", "bogslime"], "thresholds": [0.66, 0.33], "pools": 4}},
 	"king": {"tile": 108, "hp": 40, "speed": 34.0, "radius": 14.0, "contact": 2, "aggro": 170.0, "ai": "king", "gold": Vector2i(60, 60), "xp": 80},
 }
 
@@ -34,6 +60,22 @@ const TIPS := {
 	"ghost": "Floats through walls, slow but relentless. Hits hard if it catches you.",
 	"ogre": "Slow, tough and brutal. Hit it, back off, repeat. Frost Brand helps.",
 	"king": "Fires rings of bolts and calls slimes at half health. Dash through the gaps!",
+	"scorpion": "Pounces fast and its sting poisons. Keep moving, and drink a potion to cure the poison.",
+	"sandwisp": "A drifting spark of the desert. Its sand bolts slow you down.",
+	"mummy": "Slow and sturdy, wrapped in ancient bandages. Burn it, then back away.",
+	"scarab": "A swarming beetle. Weak alone, but they come in numbers.",
+	"cursed": "Keeps its distance and curses you with slowing bolts. Close in quickly.",
+	"pharaoh": "Slams the sand and fires fans of slowing bolts. Calls mummies as it weakens. Watch the gold circle!",
+	"crab": "A hard-shelled brute that scuttles in and pinches. Hit it from the side.",
+	"pirate": "Charges with a cutlass. Dash aside as it flashes, then strike.",
+	"parrot": "A fast, flitting pest that nips at you.",
+	"cannoneer": "Fires a spread of heavy cannon shots. Dash through the gaps.",
+	"blackjaw": "Charges, fires cannon volleys and slams the deck. Calls his crew at half health.",
+	"bogslime": "A swamp slime whose touch poisons. Don't let it corner you.",
+	"wisp": "A glowing ghost light that throws poison bolts. Fireballs pop it quickly.",
+	"zombie": "A tough shambling corpse with a poisonous touch. Keep your distance.",
+	"bogdog": "A fast hound that pounces and poisons. Dash sideways as it charges.",
+	"morwen": "Blinks around the arena, drops pools of poison and fires bolts. Stay out of the green circles!",
 	"frostslime": "A chilly slime. Its touch slows you down, so don't let it corner you.",
 	"frostbat": "Fast and cold. Being bitten slows you, so kill it quickly.",
 	"snowgob": "Tougher goblin that charges just like the others. Dash sideways, then strike!",
@@ -42,6 +84,9 @@ const TIPS := {
 	"titan": "Slams the ground (get out of the red circle!) and fires fans of ice shards. Enrages at half health.",
 }
 const NAMES := {
+	"scorpion": "Scorpion", "sandwisp": "Sand Wisp", "mummy": "Mummy", "scarab": "Scarab", "cursed": "Cursed Priest", "pharaoh": "The Pharaoh",
+	"crab": "Rock Crab", "pirate": "Pirate", "parrot": "Parrot", "cannoneer": "Cannoneer", "blackjaw": "Captain Blackjaw",
+	"bogslime": "Bog Slime", "wisp": "Will-o'-Wisp", "zombie": "Bog Zombie", "bogdog": "Bog Hound", "morwen": "Witch Morwen",
 	"king": "King Slime", "frostslime": "Ice Slime", "frostbat": "Frost Bat", "snowgob": "Snow Goblin",
 	"wraith": "Ice Wraith", "yeti": "Yeti", "titan": "Frost Titan",
 }
@@ -76,16 +121,26 @@ var summoned := false
 var burn_time := 0.0
 var burn_tick := 0.0
 var slow_time := 0.0
+var poison_time := 0.0
+var poison_tick := 0.0
 var t := randf() * 10.0
 
-var slows := false # touching it slows you down
+var contact_effect := "" # what touching it does to you on top of damage: "slow" or "poison"
+var bolt_speed := 75.0
+var bolt_damage := 1
+var bolt_effect := ""
+var bolt_fan := 1
+var bolt_spread := 0.2
+var phase := 0
+var atk_i := 0
+var cur_atk := ""
 var enraged := false
 var slam_next := true
 var ring_t := 0.0
 
 var boss: bool:
 	get:
-		return kind == "king" or kind == "titan"
+		return kind in ["king", "titan", "pharaoh", "blackjaw", "morwen"]
 
 var display_name: String:
 	get:
@@ -114,15 +169,24 @@ func setup(k: String) -> void:
 		scale_f = d.scale
 	if d.has("tint"):
 		base_color = d.tint
-	slows = d.get("slows", false)
+	contact_effect = d.get("contact_effect", "slow" if d.get("slows", false) else "")
+	var b: Dictionary = d.get("bolt", {})
+	bolt_speed = b.get("speed", 75.0)
+	bolt_damage = b.get("damage", 1)
+	bolt_effect = b.get("effect", "")
+	bolt_fan = b.get("fan", 1)
+	bolt_spread = b.get("spread", 0.2)
 
 
 func _ready() -> void:
 	add_to_group("enemies")
+	SoftShadow.attach(self, Vector2(radius * 2.0 + 3.0, radius * 0.8 + 2.0), Vector2(0, -1))
 	if raider:
 		add_to_group("raiders")
 	collision_layer = 2
 	collision_mask = 0 if (ai == "float" or ai == "wraith") else 1
+	if ai == "pattern":
+		cooldown = 2.0
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
 	circle.radius = radius * 0.6
@@ -130,7 +194,7 @@ func _ready() -> void:
 	shape.position = Vector2(0, -radius * 0.6)
 	add_child(shape)
 
-	sprite.texture = DUNGEON
+	sprite.texture = Tiles.smooth(DUNGEON)
 	sprite.region_enabled = true
 	sprite.region_rect = Tiles.region(KINDS[kind].tile)
 	sprite.centered = false
@@ -146,6 +210,9 @@ func apply_status(kind: String) -> void:
 	if kind == "burn":
 		burn_time = 3.0
 		burn_tick = 0.6
+	elif kind == "poison":
+		poison_time = 4.0
+		poison_tick = 0.8
 	elif kind == "freeze":
 		slow_time = 3.0
 
@@ -214,6 +281,11 @@ func _physics_process(delta: float) -> void:
 			move = _wraith(dir, dist, awake)
 			sprite.position.y = base_y + sin(t * 3.0) * 2.0
 			tint = Color(base_color.r, base_color.g, base_color.b, 0.65 + sin(t * 4.0) * 0.15)
+		"pattern":
+			move = _pattern_boss(delta, dir, awake)
+			sprite.position.y = base_y - absf(sin(t * 3.0)) * 2.0 * scale_f
+			if state == 20 or state == 21:
+				tint = Color(2.0, 2.0, 2.0) if state == 20 else Color(1.6, 1.2, 1.2)
 		"titan":
 			move = _titan(delta, dir, awake)
 			sprite.position.y = base_y - absf(sin(t * 3.0)) * 2.0 * scale_f
@@ -227,6 +299,15 @@ func _physics_process(delta: float) -> void:
 		tint = tint * Color(0.55, 0.85, 1.4)
 	velocity = move + knock
 	move_and_slide()
+	if poison_time > 0.0:
+		poison_time -= delta
+		poison_tick -= delta
+		tint = tint * Color(0.7, 1.3, 0.6)
+		if poison_tick <= 0.0:
+			poison_tick = 0.8
+			hurt(1, global_position)
+			if hp <= 0:
+				return
 	if burn_time > 0.0:
 		burn_time -= delta
 		burn_tick -= delta
@@ -239,14 +320,16 @@ func _physics_process(delta: float) -> void:
 
 	flash = maxf(flash - delta, 0.0)
 	ring_t = maxf(ring_t - delta, 0.0)
-	if ring_t > 0.0 or state == 1:
+	if ring_t > 0.0 or state == 1 or (ai == "pattern" and state == 20):
 		queue_redraw()
 	sprite.modulate = Color(2.0, 2.0, 2.0) if flash > 0.0 else tint
 	hit_cd = maxf(hit_cd - delta, 0.0)
 	if hit_cd <= 0.0 and dist < radius + 5.0:
 		player.call("hurt", contact, global_position)
-		if slows:
+		if contact_effect == "slow":
 			player.call("apply_slow", 2.0)
+		elif contact_effect == "poison":
+			player.call("apply_poison", 4.0)
 		hit_cd = 0.6
 
 
@@ -284,7 +367,7 @@ func _shoot(dir: Vector2, dist: float, awake: bool) -> Vector2:
 		return Vector2.ZERO
 	if cooldown <= 0.0 and dist < 170.0:
 		cooldown = 1.9
-		_fire(dir, 75.0)
+		_volley(dir)
 	if dist < 55.0:
 		return -dir * speed
 	if dist > 100.0:
@@ -325,7 +408,7 @@ func _wraith(dir: Vector2, dist: float, awake: bool) -> Vector2:
 		return Vector2.ZERO
 	if cooldown <= 0.0 and dist < 190.0:
 		cooldown = 2.4
-		_fire(dir, 70.0, true)
+		_volley(dir, "slow")
 	if dist < 60.0:
 		return -dir * speed
 	if dist > 110.0:
@@ -386,10 +469,112 @@ func _slam() -> void:
 		_fire(Vector2.from_angle(TAU * i / 14.0 + t), 75.0, true)
 
 
-func _fire(dir: Vector2, bolt_speed: float, frost := false) -> void:
+# A boss that cycles through its attack list (slam, fan, charge, pools, blink). Driven by KINDS[kind].boss.
+func _pattern_boss(delta: float, dir: Vector2, awake: bool) -> Vector2:
+	var cfg: Dictionary = KINDS[kind].boss
+	var thresholds: Array = cfg.thresholds
+	while phase < thresholds.size() and float(hp) / max_hp <= thresholds[phase]:
+		phase += 1
+		enraged = true
+		flash = 0.5
+		Audio.sfx("roar")
+		for k in cfg.summon:
+			for i in 2:
+				summon.emit(k, position + Vector2.from_angle(TAU * (i + phase * 0.37) / 2.0) * 46.0)
+		summon.emit("orb", position + Vector2(-60, 50))
+		summon.emit("orb", position + Vector2(60, 50))
+	var rate := 1.45 if enraged else 1.0
+	match state:
+		20: # winding up an attack
+			state_time -= delta
+			if state_time <= 0.0:
+				_execute_attack(cur_atk, dir, cfg)
+			return Vector2.ZERO
+		21: # charging
+			state_time -= delta
+			if state_time <= 0.0:
+				state = 0
+				cooldown = cfg.cd_enraged if enraged else cfg.cd
+			return lock_dir * float(cfg.get("charge_speed", 190.0))
+	if awake and cooldown <= 0.0:
+		var attacks: Array = cfg.attacks
+		cur_atk = attacks[atk_i % attacks.size()]
+		atk_i += 1
+		state = 20
+		state_time = {"slam": 0.9, "fan": 0.5, "charge": 0.6, "pools": 0.7, "blink": 0.5}.get(cur_atk, 0.6)
+		if enraged:
+			state_time *= 0.75
+		lock_dir = dir
+		return Vector2.ZERO
+	return dir * speed * rate if awake else Vector2.ZERO
+
+
+func _execute_attack(atk: String, dir: Vector2, cfg: Dictionary) -> void:
+	var player := get_tree().get_first_node_in_group("player") as Node2D
+	var effect: String = cfg.effect
+	var after_cd: float = cfg.cd_enraged if enraged else cfg.cd
+	state = 0
+	match atk:
+		"slam":
+			Audio.sfx("slam")
+			ring_t = 0.4
+			var radius: float = cfg.slam_r
+			if player and global_position.distance_to(player.global_position) < radius:
+				player.call("hurt", cfg.dmg, global_position)
+				if effect == "slow":
+					player.call("apply_slow", 2.0)
+				elif effect == "poison":
+					player.call("apply_poison", 4.0)
+			for i in int(cfg.ring_n):
+				_fire(Vector2.from_angle(TAU * i / float(cfg.ring_n) + t), float(cfg.ring_speed), false, effect, int(cfg.dmg))
+		"fan":
+			var n: int = cfg.fan_n
+			for k in n:
+				_fire(dir.rotated((k - (n - 1) / 2.0) * float(cfg.fan_spread)), float(cfg.fan_speed), false, effect, int(cfg.dmg))
+			Audio.sfx("bolt")
+		"charge":
+			state = 21
+			state_time = 0.5
+			lock_dir = dir
+			after_cd = 0.0
+			Audio.sfx("dash")
+		"pools":
+			Audio.sfx("slam")
+			var count: int = cfg.get("pools", 3)
+			for i in count:
+				var spot := position
+				if player:
+					spot = player.global_position + Vector2.from_angle(TAU * i / float(count) + randf()) * (0.0 if i == 0 else randf_range(26.0, 60.0))
+				summon.emit("hazard_poison", spot)
+		"blink":
+			Audio.sfx("dash")
+			if player:
+				var target := player.global_position + Vector2.from_angle(randf() * TAU) * randf_range(90.0, 150.0)
+				position = target.clamp(Vector2(48, 64), Vector2(432, 320))
+			flash = 0.3
+			ring_t = 0.3
+			for i in 8:
+				_fire(Vector2.from_angle(TAU * i / 8.0 + t), 70.0, false, effect, int(cfg.dmg))
+	if state != 21:
+		cooldown = after_cd
+
+
+# This monster's own bolts: speed, damage, how many in a fan, and any effect, from its stats.
+func _volley(dir: Vector2, default_effect := "") -> void:
+	var effect := bolt_effect if bolt_effect != "" else default_effect
+	for k in bolt_fan:
+		var a := (k - (bolt_fan - 1) / 2.0) * bolt_spread
+		_fire(dir.rotated(a), bolt_speed, false, effect, bolt_damage)
+
+
+func _fire(dir: Vector2, bolt_speed: float, frost := false, effect := "", damage := 1) -> void:
 	var bolt := Node2D.new()
 	bolt.set_script(BoltScript)
-	bolt.frost = frost
+	if effect != "":
+		bolt.effect = effect
+	elif frost:
+		bolt.effect = "slow"
+	bolt.damage = damage
 	bolt.velocity = dir * bolt_speed
 	bolt.position = position + Vector2(0, -8.0 * scale_f)
 	get_parent().add_child(bolt)
@@ -397,12 +582,23 @@ func _fire(dir: Vector2, bolt_speed: float, frost := false) -> void:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(-radius * 0.9, -1, radius * 1.8, 2), Color(0, 0, 0, 0.25))
 	if boss:
 		var w := 32.0 if kind == "king" else 56.0
 		var top := -36.0 if kind == "king" else -70.0
+		if ai == "pattern":
+			top = -62.0
 		draw_rect(Rect2(-w / 2.0 - 1, top, w + 2, 5), Color("2e2233"))
 		draw_rect(Rect2(-w / 2.0, top + 1, w * clampf(float(hp) / max_hp, 0.0, 1.0), 3), Color("e84a5f"))
+	if ai == "pattern":
+		var cfg: Dictionary = KINDS[kind].boss
+		if state == 20 and cur_atk == "slam":
+			var a := 0.35 + 0.3 * sin(t * 20.0)
+			var r: float = cfg.slam_r
+			draw_arc(Vector2(0, -6), r, 0.0, TAU, 48, Color(1.0, 0.3, 0.3, a + 0.2), 2.0)
+			draw_circle(Vector2(0, -6), r, Color(1.0, 0.2, 0.2, a * 0.25))
+		if ring_t > 0.0:
+			var u := 1.0 - ring_t / 0.4
+			draw_arc(Vector2(0, -6), 10.0 + u * float(cfg.slam_r), 0.0, TAU, 48, Color(1.0, 0.95, 0.8, 1.0 - u), 4.0)
 	if kind == "titan":
 		if state == 1:
 			# Red warning circle: get out before the slam lands.

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://swamp.gd" id="1_swamp"]
+
+[node name="Swamp" type="Node2D"]
+script = ExtResource("1_swamp")

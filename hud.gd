@@ -37,6 +37,7 @@ var _blips := 0
 
 
 func _ready() -> void:
+	layer = 2
 	_style(stats, 20)
 	stats.position = Vector2(16, 12)
 	add_child(stats)
@@ -205,6 +206,8 @@ func _process(delta: float) -> void:
 		active.append("SWIFT %ds" % ceili(GameState.buff_swift))
 	if GameState.aegis_hits > 0:
 		active.append("AEGIS x%d" % GameState.aegis_hits)
+	if GameState.poison_time > 0.0:
+		active.append("POISONED %ds" % ceili(GameState.poison_time))
 	if GameState.meal_time > 0.0:
 		active.append("%s %ds" % [GameState.meal_data().name.to_upper(), ceili(GameState.meal_time)])
 	buffs.text = "   ".join(active)

@@ -6,6 +6,7 @@ const NpcScript := preload("res://npc.gd")
 const PixelArt := preload("res://pixel_art.gd")
 const DecorScript := preload("res://decor.gd")
 const Weapons := preload("res://weapons.gd")
+const RegionArt := preload("res://region_art.gd")
 
 const Enemy := preload("res://enemy.gd")
 const DummyScript := preload("res://dummy.gd")
@@ -44,6 +45,19 @@ const ROOMS := {
 		"keeper_id": "brann", "keeper_name": "Armorer Brann", "keeper_tile": 87,
 		"greeting": "Welcome to my armory! Hats for style, armor for survival. Take a look!",
 	},
+	"throne": {
+		"title": "The Throne Room", "w": 22, "h": 16, "floor": [0], "wall": 57, "wall_top": 40, "tint": Color(1.0, 0.95, 0.9),
+	},
+	"banquet": {
+		"title": "The Banquet Hall", "w": 24, "h": 15, "floor": [0], "wall": 57, "wall_top": 40, "tint": Color(1.0, 0.93, 0.82),
+		"keeper_id": "bastien", "keeper_name": "Chef Bastien", "keeper_tile": 88,
+		"greeting": "Welcome to the royal table! Every dish fit for a king, and priced for a hero.",
+	},
+	"royal_armory": {
+		"title": "The Royal Armoury", "floor": [0], "wall": 57, "wall_top": 40, "tint": Color(0.75, 0.72, 0.92),
+		"keeper_id": "royce", "keeper_name": "Armourer Royce", "keeper_tile": 87,
+		"greeting": "The finest steel in the realm, forged for the Crown. Only the proven may carry it.",
+	},
 	"butcher": {
 		"title": "Gunnar's Butchery", "floor": [53, 53, 53, 53, 53, 49], "wall": 57, "wall_top": 40, "tint": Color(1.0, 0.95, 0.88),
 		"keeper_id": "gunnar", "keeper_name": "Butcher Gunnar", "keeper_tile": 98,
@@ -80,27 +94,35 @@ func _ready() -> void:
 			_build_bakery_props()
 		"hall":
 			_build_hall()
+		"throne":
+			_build_throne()
+		"banquet":
+			_build_banquet()
+		"royal_armory":
+			_build_royal_armory()
 		_:
 			_build_butcher_props()
-	if room_id != "hall":
+	if room_id != "hall" and room_id != "throne":
 		_build_counter()
 
 	GameState.next_spawn = ""
 	spawn_player(Vector2(W * 8.0, H * 16 - 26))
 	_pin_camera()
 	raids = false
-	finish("Space: use stations and talk to people   |   Walk out the bottom door to leave" if room_id == "hall" else "Space: talk to the shopkeeper   |   Walk out the bottom door to leave")
+	finish("Space: use stations and talk to people   |   Walk out the bottom door to leave" if room_id in ["hall", "throne"] else "Space: talk to the shopkeeper   |   Walk out the bottom door to leave")
 	hud.toast(room.title)
 
 
 func music_for() -> String:
-	return "mus_interior"
+	return "mus_castle" if room_id in ["throne", "banquet", "royal_armory"] else "mus_interior"
 
 
 func _area_process(_delta: float) -> void:
 	if not traveling and player.global_position.y > H * 16 - 10:
 		GameState.interior = ""
-		travel(TOWN_SCENE, room_id)
+		var back := GameState.interior_exit if GameState.interior_exit != "" else TOWN_SCENE
+		GameState.interior_exit = ""
+		travel(back, room_id)
 
 
 # ---------- room ----------
@@ -216,6 +238,10 @@ func _open_room_shop() -> void:
 	match room_id:
 		"armory":
 			open_outfitter()
+		"royal_armory":
+			open_menu("The Royal Armoury", _fill_royal_menu)
+		"banquet":
+			open_menu("The Banquet Hall", _fill_bakery)
 		"smithy":
 			open_menu("Tilda's Smithy", _fill_smithy)
 		"study":
@@ -582,14 +608,14 @@ func _build_bakery_props() -> void:
 func _fill_bakery(m: PanelContainer) -> void:
 	var gs := GameState
 	m.add_label("Eat in and feel the difference!   HP %d/%d    MP %d/%d    Gold %d" % [gs.hp, gs.max_hp, gs.mp, gs.max_mp(), gs.gold], UiStyle.MUTED, 16)
-	for item in BAKERY_ITEMS:
+	for item in _meal_items():
 		var useless: bool = gs.hp >= gs.max_hp and not item.has("swift") and not item.has("rage") and not (item.has("mp") and gs.mp < gs.max_mp())
 		m.add_button("%s  (%d gold)    %s" % [item.name, item.price, item.desc], _eat_here.bind(item.id), gs.gold < item.price or useless)
 	m.add_button("Done", close_menu)
 
 
 func _eat_here(id: String) -> void:
-	for item in BAKERY_ITEMS:
+	for item in _meal_items():
 		if item.id != id:
 			continue
 		if GameState.gold < item.price:
@@ -967,3 +993,129 @@ func _buy_steak() -> void:
 	if GameState.buy_steak():
 		hud.toast("Bought a prime steak.")
 	refresh_menu()
+
+
+# ---------- castle rooms ----------
+
+const BANQUET_ITEMS := [
+	{"id": "roast", "name": "Roast Boar", "price": 30, "desc": "+8 HP", "hp": 8},
+	{"id": "stew", "name": "Royal Stew", "price": 40, "desc": "+6 HP and +8 mana", "hp": 6, "mp": 8},
+	{"id": "tart", "name": "Honeyed Tart", "price": 35, "desc": "+4 HP and Swift for 30 seconds", "hp": 4, "swift": 30.0},
+	{"id": "feast", "name": "The King's Feast", "price": 90, "desc": "Heals you fully, plus Rage for 25 seconds", "full": true, "rage": 25.0},
+]
+
+
+func _meal_items() -> Array:
+	return BANQUET_ITEMS if room_id == "banquet" else BAKERY_ITEMS
+
+
+func _stone_floor(tint: Color) -> void:
+	var f := _sprite_at(PixelArt.slate_floor(W - 2, H - 3), Vector2(16, 32), -9)
+	f.modulate = tint
+	_sprite_at(PixelArt.slate_floor(2, 1), Vector2(DOORWAY.x * 16, (H - 1) * 16), -9).modulate = tint
+
+
+func _torches(xs: Array) -> void:
+	for x in xs:
+		_decor("torch", Vector2(x, 10))
+
+
+func _build_throne() -> void:
+	_stone_floor(Color(1.0, 0.95, 0.92))
+	var cx := W * 8.0
+	# A long red carpet from the door to the steps.
+	_sprite_at(PixelArt.rug(4, H - 5, Color("8b1f30"), Color("e8c872")), Vector2(cx - 32, 5 * 16), -6)
+	for x in [40.0, 88.0, W * 16.0 - 88.0, W * 16.0 - 40.0]:
+		_sprite_at(PixelArt.banner(), Vector2(x - 8, 4), 2)
+	_torches([20.0, 64.0, W * 16.0 - 64.0, W * 16.0 - 20.0, cx - 70, cx + 70])
+	_sprite_at(RegionArt.steps(8), Vector2(cx - 64, 58), -5)
+	var throne := Node2D.new()
+	throne.position = Vector2(cx, 80)
+	var t := Sprite2D.new()
+	t.texture = RegionArt.throne()
+	t.centered = false
+	t.position = Vector2(-18, -52)
+	throne.add_child(t)
+	world.add_child(throne)
+	add_blocker(throne, Rect2(-14, -14, 28, 14))
+	# Pillars down both sides.
+	for y in [112.0, 160.0, 208.0]:
+		for x in [56.0, W * 16.0 - 56.0]:
+			_prop(DUNGEON, 74, Vector2(x, y))
+	# The King, with two guards and a counsellor.
+	var king := add_npc("aldric", "King Aldric", 99, Vector2(cx, 98), 0.0, Color(1.3, 1.1, 0.6), false)
+	add_interactable(king, 30.0, func(): _talk_npc("aldric", "King Aldric", ["Welcome to Highgarden, traveller. Speak, and the Crown will listen."]))
+	add_chatter("guard1", "Royal Guard", 96, Vector2(cx - 56, 106), 0.0, Color(1.2, 0.8, 0.8))
+	add_chatter("guard2", "Royal Guard", 97, Vector2(cx + 56, 106), 0.0, Color(1.2, 0.8, 0.8))
+	add_chatter("counsellor", "Counsellor Edda", 100, Vector2(cx + 96, 150), 0.0, Color(0.8, 0.9, 1.2))
+
+
+func _build_banquet() -> void:
+	var f := _sprite_at(PixelArt.plank_floor(W - 2, H - 3), Vector2(16, 32), -9)
+	f.modulate = Color(1.0, 0.92, 0.84)
+	_sprite_at(PixelArt.plank_floor(2, 1), Vector2(DOORWAY.x * 16, (H - 1) * 16), -9)
+	_sprite_at(PixelArt.rug(5, 8, Color("8b1f30"), Color("e8c872")), Vector2(W * 8.0 - 40, 8 * 16), -6)
+	for x in [40.0, 120.0, W * 16.0 - 120.0, W * 16.0 - 40.0]:
+		_sprite_at(PixelArt.banner(), Vector2(x - 8, 4), 2)
+	_torches([20.0, 80.0, W * 16.0 - 80.0, W * 16.0 - 20.0])
+	for pos in [Vector2(40, 8 * 16), Vector2(W * 16.0 - 40 - 128, 8 * 16)]:
+		var table := _sprite_at(RegionArt.long_table(8), pos, 0)
+		add_blocker(table, Rect2(0, 8, 128, 22))
+	# Diners at the tables.
+	add_chatter("lord_a", "Lord Pemberton", 86, Vector2(40 + 20, 7 * 16 + 4), 0.0, Color(1.0, 0.85, 1.2))
+	add_chatter("lady_a", "Lady Cecile", 99, Vector2(W * 16.0 - 40 - 100, 7 * 16 + 4), 0.0, Color(0.9, 0.8, 1.2))
+	add_chatter("jester_b", "Jester Jingles", 84, Vector2(W * 8.0, 12 * 16), 30.0, Color(1.3, 0.8, 1.1))
+
+
+func _build_royal_armory() -> void:
+	_stone_floor(Color(0.9, 0.9, 1.05))
+	_sprite_at(PixelArt.rug(3, 6, Color("2c3a8a"), Color("e8c872")), Vector2(136, 126), -6)
+	for x in [32.0, 64.0, 240.0, 272.0]:
+		_sprite_at(PixelArt.banner(), Vector2(x, 4), 2)
+	_sprite_at(PixelArt.weapon_rack(), Vector2(138, 6), 2)
+	_torches([104.0, 204.0, 20.0, 292.0])
+	for pos in [Vector2(36, 76), Vector2(40, 140), Vector2(284, 76), Vector2(284, 140), Vector2(60, 100), Vector2(260, 100)]:
+		var stand := Node2D.new()
+		stand.position = pos
+		var s := Sprite2D.new()
+		s.texture = PixelArt.armor_stand()
+		s.centered = false
+		s.position = Vector2(-11, -35)
+		stand.add_child(s)
+		world.add_child(stand)
+		add_blocker(stand, Rect2(-8, -6, 16, 6))
+
+
+func _fill_royal_menu(m: PanelContainer) -> void:
+	m.add_label("Royal arms. A sharper blade than any sold in town.   Gold: %d" % GameState.gold, UiStyle.MUTED, 15)
+	for id in Weapons.ROYAL_ORDER:
+		var w: Dictionary = Weapons.WEAPONS[id]
+		var owned: bool = id in GameState.weapons
+		var equipped: bool = GameState.weapon == id
+		var stats := "+%d dmg, reach +%d" % [w.dmg, int(w.reach)]
+		var text: String
+		if equipped:
+			text = "[Equipped]  %s   (%s)" % [w.name, stats]
+		elif owned:
+			text = "%s   (%s)   click to equip" % [w.name, stats]
+		else:
+			text = "%s   (%s)   %d gold" % [w.name, stats, w.price]
+		m.add_button(text, _weapon_pressed.bind(id), equipped or (not owned and GameState.gold < w.price))
+	m.add_button("Browse armour and helms...", func():
+		close_menu()
+		open_outfitter("royal"))
+	m.add_button("Done", close_menu)
+
+
+# Talk to someone in the room: their quest first, otherwise a greeting.
+func _talk_npc(id: String, display: String, greeting: Array) -> void:
+	if Quests.active_for(id) != "":
+		var t := Quests.talk(id)
+		var after: Callable = t.get("after", Callable())
+		hud.say(display, t.lines, func():
+			if after.is_valid():
+				var msg: String = after.call()
+				if msg != "":
+					hud.toast(msg))
+	else:
+		hud.say(display, greeting)
